@@ -192,8 +192,14 @@ function toast(msg, mal) {
   const t = $('toast'); t.textContent = msg; t.className = mal ? 'riesgo' : ''
   t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 3200)
 }
-async function api(action, data = {}) {
-  const r = await fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify({ clave: S.clave, action, ...data }) })
+async function api(action, data = {}, reintento) {
+  let r
+  try {
+    r = await fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify({ clave: S.clave, action, ...data }) })
+  } catch (e) {
+    if (!reintento) { await new Promise(x => setTimeout(x, 700)); return api(action, data, true) }
+    throw e
+  }
   const j = await r.json().catch(() => ({ error: 'respuesta inválida' }))
   if (!r.ok || j.error) throw new Error(j.error || r.status)
   return j
