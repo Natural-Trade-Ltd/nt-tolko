@@ -243,17 +243,32 @@ const fletes = () => (S.boot?.fletes || []).filter(f => f.activo !== false)
 const destinos = () => [...new Set(fletes().map(f => f.destino))]
 function flete(destino, grupo) { const f = fletes().find(f => f.destino === destino && f.grupo_flete === grupo); return f ? +f.usd_mbf : null }
 const factorCdn = () => { const f = parseFloat(param('factor_cdn_usmill')); return isFinite(f) && f > 0 ? f : 1.134409 }
-const fxMercado = () => { const f = parseFloat(param('fx_usdcad')); return isFinite(f) && f > 0 ? f : 1.3865 }
+const fxParam = () => { const v = param('fx_usdcad'); if (v == null) return null; return typeof v === 'object' ? v : { v: parseFloat(v), fecha: null, fuente: null } }
+const fxMercado = () => { const p = fxParam(); const f = p ? parseFloat(p.v) : NaN; return isFinite(f) && f > 0 ? f : 1.3865 }
 function usmillEff(it) {
   if (it.precio_usmill != null) return { v: +it.precio_usmill, est: false, src: 'US' }
   if (it.precio_cdnmill != null) return { v: +it.precio_cdnmill / factorCdn(), est: false, src: 'CDN' }
   if (it.precio_chi != null) return { v: +it.precio_chi - spread(it.size), est: true, src: '≈' }
   return null
 }
+const modoCdn = () => { const m = param('modo_cdn'); return m === 'factor' ? 'factor' : 'fx_dia' }
+/* Costo neto en aserradero (USD, con el trato ya aplicado):
+   1) US MILL publicado × (1−desc)  — trato 25% sobre lista USD
+   2) CDN MILL → según modo: ÷ FX del día (pago en CAD convertido) o ÷ factor × (1−desc) (réplica del trato USD)
+   3) respaldo: (Chicago − spread) × (1−desc), marcado ≈ */
+function netoMillUsd(it) {
+  if (it.precio_usmill != null) return { v: +it.precio_usmill * (1 - descuento()), est: false, src: 'US' }
+  if (it.precio_cdnmill != null) {
+    if (modoCdn() === 'fx_dia') return { v: +it.precio_cdnmill / fxMercado(), est: false, src: 'CDN@FX' }
+    return { v: (+it.precio_cdnmill / factorCdn()) * (1 - descuento()), est: false, src: 'CDN' }
+  }
+  if (it.precio_chi != null) return { v: (+it.precio_chi - spread(it.size)) * (1 - descuento()), est: true, src: '≈' }
+  return null
+}
 function costo(it, destino) {
-  const u = usmillEff(it); if (!u || !it.grupo_flete) return null
+  const u = netoMillUsd(it); if (!u || !it.grupo_flete) return null
   const f = flete(destino, it.grupo_flete); if (f == null) return null
-  return { v: Math.floor(u.v * (1 - descuento()) + f), est: u.est }
+  return { v: Math.floor(u.v + f), est: u.est }
 }
 function costoTxt(c) {
   if (!c) return '<td class="r">—</td>'
@@ -274,7 +289,19 @@ async function cargarBoot() {
   const fechas = [...new Set(S.boot.listas.map(l => l.fecha))].sort().reverse()
   if (!S.fecha || !fechas.includes(S.fecha)) S.fecha = fechas[0] || null
   $('fecha-sel').innerHTML = fechas.map(f => `<option value="${f}" ${f === S.fecha ? 'selected' : ''}>Lista ${fmtFecha(f)} ${f.slice(0,4)}</option>`).join('') || '<option>—</option>'
+  actualizarFx() // FX del día, en paralelo (no bloquea)
   await cargarItems()
+}
+async function actualizarFx(forzar) {
+  try {
+    const r = await api('fx_hoy', forzar ? { forzar: true } : {})
+    if (r && r.fx && r.fx.v) {
+      const p = (S.boot.params || []).find(p => p.clave === 'fx_usdcad')
+      if (p) p.valor = r.fx; else S.boot.params.push({ clave: 'fx_usdcad', valor: r.fx })
+      if (forzar) toast('FX USD/CAD hoy: ' + r.fx.v)
+      renderVista()
+    } else if (forzar && r && r.error_fx) toast('No se pudo obtener el FX: ' + r.error_fx, true)
+  } catch (e) { if (forzar) toast('No se pudo obtener el FX: ' + e.message, true) }
 }
 async function cargarItems() {
   S.items = []
@@ -397,7 +424,7 @@ function renderResumen() {
         ${destinos().map(x => `<option ${x === d ? 'selected' : ''}>${x}</option>`).join('')}
       </select>
     </h2>
-    <p class="nota">Fórmula: US MILL × ${(100 - descuento() * 100).toFixed(0)}% + flete a frontera. Donde no hay US MILL publicado se deriva de la lista CDN (CDN MILL ÷ ${factorCdn().toFixed(4)}). Δ compara contra la mediana de su grupo (medida + grado + especie). ≈ = estimado con spread (solo si falta la lista CDN).</p>
+    <p class="nota">Fórmula: donde Tolko publica US MILL → × ${(100 - descuento() * 100).toFixed(0)}% + flete. Resto (lista CDN): ${modoCdn() === 'fx_dia' ? `CDN MILL ÷ FX del día (${fxMercado()}) + flete` : `CDN MILL ÷ ${factorCdn().toFixed(4)} × ${(100 - descuento() * 100).toFixed(0)}% + flete`} — modo cambiable en Configuración. Δ compara contra la mediana de su grupo. ≈ = estimado (solo si falta la lista CDN).</p>
     <div class="tabla-wrap"><table>
       <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Vol</th><th>Status</th><th class="r">US MILL</th><th class="r">${esc(d)}</th><th class="r">Δ grupo</th></tr>
       ${ops.map(o => filaOp(o)).join('') || '<tr><td colspan="9" class="nota">Sin datos suficientes.</td></tr>'}
@@ -408,7 +435,8 @@ function renderResumen() {
     <div class="card"><h2>Notas de la lista</h2>
       <p class="nota">Fuentes cargadas el ${fmtFecha(S.fecha)}: ${S.boot.listas.filter(l => l.fecha === S.fecha).map(l => `<span class="chip neutro">${fuenteLabel(l.fuente)}</span>`).join(' ')}</p>
       <p class="nota">La lista CDN trae el precio en aserradero (CAD) de TODAS las pestañas: se une renglón a renglón con la US y cierra el costo real (US MILL = CDN ÷ factor). El correo Low Grade trae US MILL directo para #3/ECON.</p>
-      <p class="nota">Prompt = rojo en la lista de Tolko = embarque inmediato. "Emb dd-mmm" = semana de producción. Ojo: pagar la lista CDN en CAD al FX de mercado (${fxMercado()}) NO equivale al 25% — tu trato en USD es mejor mientras USDCAD esté abajo de ${(factorCdn() / (1 - descuento())).toFixed(2)}.</p>
+      <p class="nota">Prompt = rojo en la lista de Tolko = embarque inmediato. "Emb dd-mmm" = semana de producción. FX del día: <b class="num">${fxMercado()}</b>${(() => { const p = fxParam(); return p && p.fecha ? ' · ' + p.fecha : '' })()} (se actualiza solo a diario).</p>
+      <p class="nota" style="color:var(--alerta)">Ojo: hoy los dos modos de costo CDN difieren — con FX del día la lista CDN equivale a ${(100 * (1 - factorCdn() / fxMercado())).toFixed(1)}% bajo la lista USD (no ${(descuento() * 100).toFixed(0)}%). Ejemplo carro 2x4 #3 El Paso: $${Math.floor(351.6668 / fxMercado() + 158)} con FX del día vs $${Math.floor((351.6668 / factorCdn()) * (1 - descuento()) + 158)} con el trato 25% USD. Confirma con Tolko en qué moneda te factura y elige el modo en Configuración.</p>
     </div>
   </div>`
 }
@@ -486,7 +514,7 @@ function renderExplorador() {
       </tr>
       ${arr.map(it => filaExp(it)).join('')}
     </table></div>
-    <p class="nota">Costos = US MILL × ${(100 - descuento() * 100).toFixed(0)}% + flete. ≈ = estimado (sin US MILL publicado). $ Carro/Lote = MBF × costo ${esc(S.destinoSel)}.</p>
+    <p class="nota">Costos con el trato aplicado según el modo activo (${modoCdn() === 'fx_dia' ? 'CDN ÷ FX del día' : 'CDN ÷ factor × 75%'} — Configuración) + flete. ≈ = estimado. $ Carro/Lote = MBF × costo ${esc(S.destinoSel)}.</p>
   </div>`
 }
 function filtrar(arr) {
@@ -726,14 +754,22 @@ function renderConfig() {
     <div class="filtros"><label>Descuento Tolko (%)</label>
       <input type="number" id="cfg-desc" value="${(descuento() * 100).toFixed(1)}" style="width:90px" step="0.5">
       <button class="mini" onclick="guardarDescuento()">Guardar</button></div>
+    <h3>Modo de costo para la lista CDN</h3>
+    <label class="nota" style="display:block;margin:4px 0"><input type="radio" name="mcdn" ${modoCdn() === 'fx_dia' ? 'checked' : ''} onchange="guardarModo('fx_dia')"> <b>CDN ÷ FX del día</b> — pagas la lista CDN en CAD y la conviertes al FX de hoy; fletes en USD. (Hoy: carro 2x4 #3 El Paso = $${Math.floor(351.6668 / fxMercado() + 158)})</label>
+    <label class="nota" style="display:block;margin:4px 0"><input type="radio" name="mcdn" ${modoCdn() === 'factor' ? 'checked' : ''} onchange="guardarModo('factor')"> <b>CDN ÷ factor × ${(100 - descuento() * 100).toFixed(0)}%</b> — réplica exacta del trato «25% sobre la lista USD». (Hoy: mismo carro = $${Math.floor((351.6668 / factorCdn()) * (1 - descuento()) + 158)})</label>
+    <p class="nota">Los materiales donde Tolko publica US MILL (FIR y correo Low Grade) siempre usan US MILL × ${(100 - descuento() * 100).toFixed(0)}%, en ambos modos.</p>
     <h3>Lista CDN (precio en aserradero, CAD)</h3>
-    <p class="nota">US MILL equivalente = CDN MILL ÷ factor. El factor se recalibra solo al cargar listas (mediana de renglones con ambos precios). Observado en la lista actual: <b class="num">${factorObservado() ? factorObservado().toFixed(6) : '—'}</b>. Con el ${(descuento() * 100).toFixed(0)}% incluido, el factor implica USDCAD ${(factorCdn() / (1 - descuento())).toFixed(4)}; el FX de mercado es informativo para comparar si conviene pagar en CAD.</p>
+    <p class="nota">US MILL equivalente = CDN MILL ÷ factor. El factor se recalibra solo al cargar listas (mediana de renglones con ambos precios). Observado en la lista actual: <b class="num">${factorObservado() ? factorObservado().toFixed(6) : '—'}</b>. Con el ${(descuento() * 100).toFixed(0)}% incluido, el factor implica USDCAD ${(factorCdn() / (1 - descuento())).toFixed(4)}. El FX del día se obtiene automáticamente al abrir el portal (open.er-api.com) y solo sirve para comparar si conviene pagar en CAD — el costo de tu trato NO depende del FX de mercado.</p>
     <div class="filtros"><label>Factor CDN→US MILL</label>
       <input type="number" id="cfg-factor" value="${factorCdn()}" style="width:120px" step="0.0001">
       <button class="mini" onclick="guardarFactor()">Guardar</button></div>
-    <div class="filtros"><label>FX USD/CAD de mercado</label>
+    <div class="filtros"><label>FX USD/CAD del día</label>
+      <b class="num" style="font-size:16px">${fxMercado()}</b>
+      <span class="nota">${(() => { const p = fxParam(); return p && p.fecha ? `${p.fuente === 'manual' ? 'manual' : 'automático'} · ${p.fecha}` : 'sin fecha — actualiza' })()}</span>
+      <button class="mini" onclick="actualizarFx(true)">Actualizar ahora</button></div>
+    <div class="filtros"><label class="nota">Corrección manual (se reemplaza al día siguiente)</label>
       <input type="number" id="cfg-fx" value="${fxMercado()}" style="width:120px" step="0.0001">
-      <button class="mini" onclick="guardarFx()">Guardar</button></div>
+      <button class="sec mini" onclick="guardarFx()">Guardar</button></div>
     <h3>Spread Chicago → US MILL (respaldo)</h3>
     <p class="nota">Solo se usa si NO hay lista CDN de esa fecha: US MILL ≈ Chicago − spread (marcado con ≈). Validado el 18-ago: el error típico fue de $2–7/MBF vs el precio real.</p>
     ${['2x4', '2x6', '2x8', '2x10', '2x12', 'default'].map(k => `<div class="filtros"><label style="min-width:70px">${k}</label>
@@ -778,6 +814,15 @@ async function borrarDestino(d) {
     S.boot = await api('bootstrap'); toast('Destino eliminado'); renderConfig()
   } catch (e) { toast('Error: ' + e.message, true) }
 }
+async function guardarModo(m) {
+  try {
+    await api('set_param', { param: 'modo_cdn', valor: m })
+    const p = (S.boot.params || []).find(p => p.clave === 'modo_cdn')
+    if (p) p.valor = m; else S.boot.params.push({ clave: 'modo_cdn', valor: m })
+    toast('Modo CDN: ' + (m === 'fx_dia' ? 'FX del día' : 'factor × 75%'))
+    renderTodo()
+  } catch (e) { toast('Error: ' + e.message, true) }
+}
 async function guardarFactor() {
   const v = parseFloat($('cfg-factor').value)
   if (!isFinite(v) || v <= 0) return
@@ -787,8 +832,10 @@ async function guardarFactor() {
 async function guardarFx() {
   const v = parseFloat($('cfg-fx').value)
   if (!isFinite(v) || v <= 0) return
-  try { await api('set_param', { param: 'fx_usdcad', valor: v }); S.boot = await api('bootstrap'); toast('FX mercado = ' + v); renderTodo() }
-  catch (e) { toast('Error: ' + e.message, true) }
+  try {
+    await api('set_param', { param: 'fx_usdcad', valor: { v, fecha: new Date().toISOString().slice(0, 10), fuente: 'manual' } })
+    S.boot = await api('bootstrap'); toast('FX manual = ' + v); renderTodo()
+  } catch (e) { toast('Error: ' + e.message, true) }
 }
 async function guardarDescuento() {
   const v = parseFloat($('cfg-desc').value)
