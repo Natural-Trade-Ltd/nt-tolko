@@ -1,0 +1,33 @@
+{
+  "fecha": "2026-08-18",
+  "titulo": "Tolko Low Grade - 8/18/2026 (Brittny Wilson)",
+  "archivo": "email:1a01548482b0009b",
+  "rows": [
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "8": 42, "10": 24 }, "status": "PMT", "chi": 426, "usmill": 310, "cdnmill": 352 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "14": 40 }, "status": "PMT", "chi": 566, "usmill": 450, "cdnmill": 510 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "8": 72 }, "status": "10-Aug", "chi": 426, "usmill": 310, "cdnmill": 352 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "12": 15, "14": 18, "16": 15 }, "status": "10-Aug", "chi": 566, "usmill": 450, "cdnmill": 511 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "8": 11, "10": 11, "12": 14, "14": 15 }, "status": "17-Aug", "chi": 566, "usmill": 450, "cdnmill": 511 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "14": 48 }, "status": "24-Aug", "chi": 566, "usmill": 450, "cdnmill": 511 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x4", "grade": "#3", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "10": 24, "12": 28 }, "status": "31-Aug", "chi": 566, "usmill": 450, "cdnmill": 511 },
+    { "seccion": "#3", "mill": "LVT", "size": "2x6", "grade": "#3", "species": "SPF", "pcs": 189, "volume": "12M", "tally": { "10": 4, "12": 1, "14": 1 }, "status": "PMT", "chi": 430, "usmill": 313, "cdnmill": 355 },
+    { "seccion": "#3", "mill": "LVT", "size": "2x6", "grade": "#3", "species": "FL", "pcs": 189, "volume": "38M", "tally": { "12": 1, "14": 2, "18": 5, "20": 4 }, "status": "PMT", "chi": 430, "usmill": 313, "cdnmill": 355 },
+    { "seccion": "#3", "mill": "LD", "size": "2x6", "grade": "#3", "species": "DF", "pcs": 189, "volume": "41M", "tally": { "8": 12, "10": 6, "12": 4, "14": 1 }, "status": "PMT", "chi": 430, "usmill": 308, "cdnmill": 350 },
+    { "seccion": "#3", "mill": "LD", "size": "2x6", "grade": "#3", "species": "DF", "pcs": 189, "volume": "1", "tally": { "8": 6, "10": 6, "12": 6, "14": 7, "16": 8, "18": 3, "20": 5 }, "status": "PMT", "chi": 430, "usmill": 308, "cdnmill": 350 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x6", "grade": "#3", "species": "SPF", "pcs": 189, "volume": "1", "tally": { "8": 11, "10": 20, "12": 17, "14": 6 }, "status": "31-Aug", "chi": 430, "usmill": 308, "cdnmill": 350 },
+    { "seccion": "#3", "mill": "LD", "size": "2x8", "grade": "#3", "species": "SPF", "pcs": 147, "volume": "7M", "tally": { "10": 2, "16": 1 }, "status": "PMT", "chi": 439, "usmill": 328, "cdnmill": 372 },
+    { "seccion": "#3", "mill": "LD", "size": "2x8", "grade": "#3", "species": "DF", "pcs": 147, "volume": "12M", "tally": { "12": 2, "18": 1, "20": 1 }, "status": "PMT", "chi": 439, "usmill": 328, "cdnmill": 372 },
+    { "seccion": "#3", "mill": "HVT", "size": "2x8", "grade": "#3", "species": "SPF", "pcs": 120, "volume": "41M", "tally": { "8": 20, "10": 5, "12": 4 }, "status": "PMT", "chi": 439, "usmill": 328, "cdnmill": 372 },
+    { "seccion": "ECON", "mill": "LVT", "size": "2x4", "grade": "ECON", "species": "SPF", "pcs": 294, "volume": "44M", "tally": { "8": 4, "10": 4, "12": 3, "14": 2, "16": 3, "18": 1, "20": 1 }, "status": "PMT", "chi": 410, "usmill": 299, "cdnmill": 339 },
+    { "seccion": "ECON", "mill": "LD", "size": "2x4", "grade": "ECON", "species": "SPF", "pcs": 294, "volume": "58M", "tally": { "8": 8, "10": 19, "12": 1, "16": 2 }, "status": "PMT", "chi": 410, "usmill": 294, "cdnmill": 334 },
+    { "seccion": "ECON", "mill": "LD", "size": "2x4", "grade": "ECON", "species": "SPF", "pcs": 240, "volume": "25M", "tally": { "8": 4, "10": 5, "12": 2, "16": 3 }, "status": "PMT", "chi": 410, "usmill": 294, "cdnmill": 334 },
+    { "seccion": "ECON", "mill": "LD", "size": "2x4", "grade": "ECON", "species": "DF", "pcs": 294, "volume": "1", "tally": { "8": 14, "10": 14, "12": 10, "14": 2, "16": 10 }, "status": "PMT", "chi": 410, "usmill": 289, "cdnmill": 328 },
+    { "seccion": "ECON", "mill": "HVT", "size": "2x4", "grade": "ECON", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "8": 32, "10": 32 }, "status": "17-Aug", "chi": 390, "usmill": 274, "cdnmill": 311 },
+    { "seccion": "ECON", "mill": "HVT", "size": "2x4", "grade": "ECON", "species": "SPF", "pcs": 294, "volume": "1", "tally": { "8": 25, "10": 16, "12": 18 }, "status": "31-Aug", "chi": 400, "usmill": 284, "cdnmill": 322 },
+    { "seccion": "ECON", "mill": "LVT", "size": "2x6", "grade": "ECON", "species": "SPF", "pcs": 189, "volume": "84M", "tally": { "8": 7, "10": 8, "12": 6, "14": 6, "16": 6, "18": 2, "20": 1 }, "status": "PMT", "chi": 390, "usmill": 273, "cdnmill": 310 },
+    { "seccion": "ECON", "mill": "LD", "size": "2x6", "grade": "ECON", "species": "SPF", "pcs": 189, "volume": "77M", "tally": { "8": 13, "12": 15, "14": 1, "16": 7 }, "status": "PMT", "chi": 390, "usmill": 268, "cdnmill": 304 },
+    { "seccion": "ECON", "mill": "LD", "size": "2x6", "grade": "ECON", "species": "DF", "pcs": 189, "volume": "58M", "tally": { "8": 7, "10": 9, "12": 8, "16": 4 }, "status": "PMT", "chi": 390, "usmill": 263, "cdnmill": 299 },
+    { "seccion": "ECON", "mill": "HVT", "size": "2x6", "grade": "ECON", "species": "SPF", "pcs": 189, "volume": "1", "tally": { "8": 23, "10": 20, "12": 16 }, "status": "PMT", "chi": 390, "usmill": 268, "cdnmill": 304 },
+    { "seccion": "ECON", "mill": "HVT", "size": "2x6", "grade": "ECON", "species": "SPF", "pcs": 189, "volume": "1", "tally": { "8": 15, "10": 14, "12": 1, "14": 8 }, "status": "17-Aug", "chi": 390, "usmill": 268, "cdnmill": 304 }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "nt-tolko",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portal Tolko — análisis y históricos de listas de venta de Tolko (Natural Trade)",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

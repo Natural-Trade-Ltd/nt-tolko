@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tolko · Centro de Análisis NT</title>
+<style>
+/* ============ Dueto Tierra — tokens ============ */
+:root{
+  --bg:#F2EDE3; --card:#FBF8F1; --line:#E0D8C8; --ink:#3A3129; --sub:#71655A; --faint:#9C8F80;
+  --acc:#587F6B; --accInk:#F6FBF7; --acc2:#8A6F5B;
+  --riesgo:#AE4E2B; --alerta:#9A6A12; --info:#3D6F9E; --ok:#587F6B;
+  --okBg:#E4EDE7; --alertaBg:#F5EBD6; --riesgoBg:#F6E3DA; --infoBg:#E4EDF6;
+  --sombra:0 1px 2px rgba(58,49,41,.05), 0 10px 30px rgba(58,49,41,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1A1713; --card:#241F1A; --line:#3A322A; --ink:#F0EAE0; --sub:#BCAFA0; --faint:#8D8072;
+    --acc:#8FB89F; --accInk:#17241C; --acc2:#C9A87F;
+    --riesgo:#E0785A; --alerta:#E0B463; --info:#7FA8D8; --ok:#8FB89F;
+    --okBg:#1E2E24; --alertaBg:#33291A; --riesgoBg:#33211B; --infoBg:#1C2836;
+    --sombra:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1A1713; --card:#241F1A; --line:#3A322A; --ink:#F0EAE0; --sub:#BCAFA0; --faint:#8D8072;
+  --acc:#8FB89F; --accInk:#17241C; --acc2:#C9A87F;
+  --riesgo:#E0785A; --alerta:#E0B463; --info:#7FA8D8; --ok:#8FB89F;
+  --okBg:#1E2E24; --alertaBg:#33291A; --riesgoBg:#33211B; --infoBg:#1C2836;
+  --sombra:0 1px 2px rgba(0,0,0,.3), 0 14px 34px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-weight:400; line-height:1.55; font-size:15px;
+}
+.serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--acc)}
+/* ============ layout ============ */
+header{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:16px 22px 10px; max-width:1280px; margin:0 auto;
+}
+.logo-placa{display:inline-flex; align-items:center; border-radius:8px; padding:0}
+:root[data-theme="dark"] .logo-placa{background:#F7F5EC; padding:3px 8px}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .logo-placa{background:#F7F5EC; padding:3px 8px} }
+.logo-placa img{height:30px; display:block}
+.titulo h1{font-weight:500; font-size:24px; margin:0; letter-spacing:-.01em; text-wrap:balance}
+.titulo .eyebrow{font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--acc2); margin:0}
+.head-right{margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+select,input[type=text],input[type=number],input[type=date],input[type=password],textarea{
+  background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:12px;
+  padding:8px 10px; font:inherit; font-size:14px;
+}
+textarea{width:100%; min-height:130px; border-radius:12px}
+button{
+  background:var(--acc); color:var(--accInk); border:0; border-radius:12px; padding:9px 16px;
+  font:inherit; font-size:14px; font-weight:600; cursor:pointer;
+}
+button.sec{background:var(--card); color:var(--ink); border:1px solid var(--line)}
+button.mini{padding:5px 10px; font-size:12.5px; border-radius:10px}
+button:disabled{opacity:.5; cursor:default}
+nav{
+  display:flex; gap:6px; padding:6px 22px 14px; max-width:1280px; margin:0 auto;
+  overflow-x:auto; -webkit-overflow-scrolling:touch;
+}
+nav button{background:var(--card); color:var(--sub); border:1px solid var(--line); white-space:nowrap}
+nav button.on{background:var(--acc); color:var(--accInk); border-color:var(--acc)}
+main{max-width:1280px; margin:0 auto; padding:0 22px 60px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sombra); padding:16px 18px; margin-bottom:16px}
+.card h2{font-weight:600; font-size:16px; margin:0 0 10px}
+.card h3{font-weight:600; font-size:14px; margin:14px 0 6px; color:var(--sub)}
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px}
+.kpis{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px}
+.kpi{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 18px; min-width:130px}
+.kpi .v{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; font-size:26px; font-weight:600; color:var(--acc); font-variant-numeric:tabular-nums}
+.kpi .l{font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--faint)}
+.chip{display:inline-block; border-radius:999px; padding:2px 10px; font-size:11.5px; font-weight:600}
+.chip.ok{background:var(--okBg); color:var(--ok)}
+.chip.alerta{background:var(--alertaBg); color:var(--alerta)}
+.chip.riesgo{background:var(--riesgoBg); color:var(--riesgo)}
+.chip.info{background:var(--infoBg); color:var(--info)}
+.chip.neutro{background:var(--bg); color:var(--sub); border:1px solid var(--line)}
+.tabla-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:12px}
+table{border-collapse:collapse; width:100%; font-size:13.5px}
+th{
+  text-align:left; font-weight:600; font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--faint); padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap;
+  cursor:pointer; user-select:none; background:var(--card); position:sticky; top:0;
+}
+td{padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.sel-row td{background:var(--okBg)}
+td.r,th.r{text-align:right}
+.precio{font-weight:600; font-variant-numeric:tabular-nums}
+.est{color:var(--alerta)}
+.filtros{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
+.filtros label{font-size:12.5px; color:var(--sub); display:flex; align-items:center; gap:5px}
+.nota{font-size:12.5px; color:var(--sub)}
+.regla{width:60px; height:3px; background:var(--acc2); border-radius:2px; margin:4px 0 10px}
+pre.oferta{
+  background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px;
+  white-space:pre-wrap; font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace; font-size:13px;
+}
+#login{
+  position:fixed; inset:0; background:var(--bg); z-index:50; display:flex; align-items:center; justify-content:center;
+}
+#login .caja{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--sombra); padding:34px 36px; width:340px; text-align:center}
+#toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:60;
+  background:var(--ink); color:var(--bg); border-radius:12px; padding:10px 18px; font-size:14px;
+  opacity:0; transition:opacity .25s; pointer-events:none; max-width:90vw;
+}
+#toast.riesgo{background:var(--riesgo); color:#fff}
+.leyenda{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px}
+.oculto{display:none !important}
+.sel-fab{
+  position:fixed; right:18px; bottom:18px; z-index:40; box-shadow:var(--sombra);
+}
+@media (max-width:640px){ header{padding:12px 14px 6px} main{padding:0 12px 80px} nav{padding:4px 12px 10px} }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="caja">
+    <p class="eyebrow" style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--acc2);margin:0">Natural Trade · uso interno</p>
+    <h1 class="serif" style="font-weight:500;font-size:26px;margin:6px 0 2px">Portal Tolko</h1>
+    <div class="regla" style="margin:10px auto 16px"></div>
+    <input type="password" id="clave-in" placeholder="Clave de acceso" style="width:100%">
+    <p id="login-err" class="nota" style="color:var(--riesgo);min-height:18px"></p>
+    <button style="width:100%" onclick="entrar()">Entrar</button>
+  </div>
+</div>
+
+<header>
+  <span class="logo-placa"><img id="nt-logo" src="data:image/png;base64,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" alt="Natural Trade" onerror="this.parentElement.style.display='none'"></span>
+  <div class="titulo">
+    <p class="eyebrow">Proveedores · Aserraderos</p>
+    <h1 class="serif">Tolko · Centro de Análisis</h1>
+  </div>
+  <div class="head-right">
+    <select id="fecha-sel" onchange="cambiarFecha(this.value)" title="Lista"></select>
+    <button class="sec mini" onclick="recargar()" title="Recargar datos">Recargar</button>
+    <button class="sec mini" id="tema-btn" onclick="ciclarTema()">Tema: Auto</button>
+  </div>
+</header>
+
+<nav id="nav">
+  <button data-v="resumen" class="on" onclick="ir('resumen')">Resumen</button>
+  <button data-v="explorador" onclick="ir('explorador')">Explorador</button>
+  <button data-v="seleccion" onclick="ir('seleccion')">Selección <span id="sel-badge" class="chip info">0</span></button>
+  <button data-v="historicos" onclick="ir('historicos')">Históricos</button>
+  <button data-v="config" onclick="ir('config')">Configuración</button>
+  <button data-v="cargar" onclick="ir('cargar')">Cargar lista</button>
+</nav>
+
+<main>
+  <section id="v-resumen"></section>
+  <section id="v-explorador" class="oculto"></section>
+  <section id="v-seleccion" class="oculto"></section>
+  <section id="v-historicos" class="oculto"></section>
+  <section id="v-config" class="oculto"></section>
+  <section id="v-cargar" class="oculto"></section>
+</main>
+
+<button id="sel-fab" class="sel-fab oculto" onclick="ir('seleccion')">Ver selección (<span id="sel-fab-n">0</span>)</button>
+<div id="toast"></div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="parser.js"></script>
+<script>
+'use strict'
+const API = 'https://borouviqngtdzfvlmlur.supabase.co/functions/v1/tolko-api'
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+const S = {
+  clave: localStorage.tolkoClave || '', boot: null, fecha: null, items: [], showDups: false,
+  filtros: { pestana:'', size:'', species:'', mill:'', prompt:false, carros:false, q:'' },
+  sort: { col:'c1', dir:1 }, sel: new Map(), destinoSel: localStorage.tolkoDestino || 'El Paso',
+  ajuste: 0, vista: 'resumen', serieModo: 'usmill',
+}
+
+/* ---------- utilidades ---------- */
+const $ = id => document.getElementById(id)
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+const f$ = n => n == null ? '—' : '$' + Math.round(n).toLocaleString('en-US')
+function toast(msg, mal) {
+  const t = $('toast'); t.textContent = msg; t.className = mal ? 'riesgo' : ''
+  t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 3200)
+}
+async function api(action, data = {}) {
+  const r = await fetch(API, { method:'POST', headers:{ 'Content-Type':'text/plain' }, body: JSON.stringify({ clave: S.clave, action, ...data }) })
+  const j = await r.json().catch(() => ({ error: 'respuesta inválida' }))
+  if (!r.ok || j.error) throw new Error(j.error || r.status)
+  return j
+}
+function fmtFecha(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${d}-${MESES[m - 1]}`
+}
+function fmtStatus(st) {
+  if (st === 'PMT') return '<span class="chip ok">Prompt</span>'
+  if (st === 'SOLD') return '<span class="chip riesgo">Vendido</span>'
+  if (/^\d{4}-/.test(st || '')) return `<span class="chip alerta">Emb ${fmtFecha(st)}</span>`
+  return `<span class="chip neutro">${esc(st || '—')}</span>`
+}
+function statusTxt(st) {
+  if (st === 'PMT') return 'Prompt'
+  if (/^\d{4}-/.test(st || '')) return 'Emb ' + fmtFecha(st)
+  return st || ''
+}
+function tallyTxt(it) {
+  if (!it.tally) return ''
+  const ks = Object.keys(it.tally)
+  const numeric = ks.every(k => /^\d+$/.test(k))
+  if (numeric) return ks.sort((a, b) => a - b).map(k => `${it.tally[k]}/${k}'`).join(' ')
+  return ks.map(k => `${it.tally[k]} pqt ${k}`).join(' · ')
+}
+function gradeTxt(g) {
+  if (g === 'A-GRADE') return 'A-Grade'
+  if (g === 'J-GRADE') return 'J-Grade'
+  if (g === 'STUD') return 'Stud'
+  if (g === 'PREM') return 'Prem'
+  return g || ''
+}
+
+/* ---------- parámetros y costos ---------- */
+const param = c => { const p = (S.boot?.params || []).find(p => p.clave === c); return p ? p.valor : null }
+const descuento = () => { const d = parseFloat(param('descuento')); return isFinite(d) ? d : 0.25 }
+function spread(size) { const sp = param('spread_chi_usmill') || {}; const v = sp[size] ?? sp.default; return v == null ? 122 : +v }
+const fletes = () => (S.boot?.fletes || []).filter(f => f.activo !== false)
+const destinos = () => [...new Set(fletes().map(f => f.destino))]
+function flete(destino, grupo) { const f = fletes().find(f => f.destino === destino && f.grupo_flete === grupo); return f ? +f.usd_mbf : null }
+function usmillEff(it) {
+  if (it.precio_usmill != null) return { v: +it.precio_usmill, est: false }
+  if (it.precio_chi != null) return { v: +it.precio_chi - spread(it.size), est: true }
+  return null
+}
+function costo(it, destino) {
+  const u = usmillEff(it); if (!u || !it.grupo_flete) return null
+  const f = flete(destino, it.grupo_flete); if (f == null) return null
+  return { v: Math.floor(u.v * (1 - descuento()) + f), est: u.est }
+}
+function costoTxt(c) {
+  if (!c) return '<td class="r">—</td>'
+  return `<td class="r precio">${c.est ? '<span class="est" title="US MILL estimado (Chicago − spread)">≈</span>' : ''}$${c.v}</td>`
+}
+
+/* ---------- arranque / datos ---------- */
+async function entrar() {
+  S.clave = $('clave-in').value.trim()
+  try {
+    await cargarBoot()
+    localStorage.tolkoClave = S.clave
+    $('login').classList.add('oculto')
+  } catch (e) { $('login-err').textContent = 'Clave incorrecta o sin conexión (' + e.message + ')' }
+}
+async function cargarBoot() {
+  S.boot = await api('bootstrap')
+  const fechas = [...new Set(S.boot.listas.map(l => l.fecha))].sort().reverse()
+  if (!S.fecha || !fechas.includes(S.fecha)) S.fecha = fechas[0] || null
+  $('fecha-sel').innerHTML = fechas.map(f => `<option value="${f}" ${f === S.fecha ? 'selected' : ''}>Lista ${fmtFecha(f)} ${f.slice(0,4)}</option>`).join('') || '<option>—</option>'
+  await cargarItems()
+}
+async function cargarItems() {
+  S.items = []
+  if (S.fecha) {
+    const ids = S.boot.listas.filter(l => l.fecha === S.fecha).map(l => l.id)
+    if (ids.length) {
+      const r = await api('items', { lista_ids: ids })
+      const listaDe = Object.fromEntries(S.boot.listas.map(l => [l.id, l]))
+      S.items = r.items.map(it => {
+        for (const k of ['precio_chi', 'precio_usmill', 'precio_cdnmill', 'mbf_est']) it[k] = it[k] == null ? null : parseFloat(it[k])
+        it.fuente = listaDe[it.lista_id]?.fuente || ''
+        return it
+      })
+    }
+  }
+  renderTodo()
+}
+async function recargar() { try { await cargarBoot(); toast('Datos recargados') } catch (e) { toast('Error: ' + e.message, true) } }
+async function cambiarFecha(f) { S.fecha = f; await cargarItems() }
+
+function itemsVisibles() {
+  let arr = S.items
+  const hayCorreo = arr.some(it => it.fuente === 'email_lowgrade')
+  if (hayCorreo && !S.showDups) arr = arr.filter(it => it.pestana !== '#3 & ECON')
+  return arr
+}
+
+/* ---------- navegación / render ---------- */
+function ir(v) {
+  S.vista = v
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v))
+  for (const s of ['resumen', 'explorador', 'seleccion', 'historicos', 'config', 'cargar'])
+    $('v-' + s).classList.toggle('oculto', s !== v)
+  renderVista()
+}
+function renderTodo() { renderVista(); renderSelBadge() }
+function renderVista() {
+  if (S.vista === 'resumen') renderResumen()
+  if (S.vista === 'explorador') renderExplorador()
+  if (S.vista === 'seleccion') renderSeleccion()
+  if (S.vista === 'historicos') renderHistoricos()
+  if (S.vista === 'config') renderConfig()
+  if (S.vista === 'cargar') renderCargar()
+}
+
+/* ---------- RESUMEN ---------- */
+function renderResumen() {
+  const arr = itemsVisibles()
+  const prompt = arr.filter(i => i.es_prompt)
+  const carros = prompt.filter(i => i.es_carro)
+  const mbf = prompt.reduce((a, i) => a + (i.mbf_est || 0), 0)
+  const reales = arr.filter(i => i.precio_usmill != null)
+  const d = S.destinoSel
+
+  // oportunidades: Δ vs mediana del grupo (size|grade|species) en el destino elegido
+  const grupos = {}
+  for (const it of arr) {
+    const c = costo(it, d); if (!c) continue
+    const k = [it.size, it.grade, it.species].join('|')
+    ;(grupos[k] = grupos[k] || []).push(c.v)
+  }
+  const mediana = xs => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)] }
+  const meds = Object.fromEntries(Object.entries(grupos).map(([k, xs]) => [k, mediana(xs)]))
+  const ops = arr.map(it => {
+    const c = costo(it, d); if (!c) return null
+    const k = [it.size, it.grade, it.species].join('|')
+    return { it, c, dlt: c.v - meds[k], n: grupos[k].length }
+  }).filter(Boolean).filter(o => o.n >= 2 && o.dlt <= 0)
+    .sort((a, b) => (a.dlt - b.dlt) || (b.it.es_prompt - a.it.es_prompt))
+    .slice(0, 12)
+
+  $('v-resumen').innerHTML = `
+  <div class="kpis">
+    <div class="kpi"><div class="v num">${arr.length}</div><div class="l">Items en lista</div></div>
+    <div class="kpi"><div class="v num">${prompt.length}</div><div class="l">Prompt</div></div>
+    <div class="kpi"><div class="v num">${carros.length}</div><div class="l">Carros completos prompt</div></div>
+    <div class="kpi"><div class="v num">${Math.round(mbf).toLocaleString('en-US')}</div><div class="l">MBF prompt</div></div>
+    <div class="kpi"><div class="v num">${reales.length}</div><div class="l">Con US MILL real</div></div>
+  </div>
+  <div class="card">
+    <h2>Top oportunidades — costo puesto en
+      <select onchange="S.destinoSel=this.value;localStorage.tolkoDestino=this.value;renderResumen()">
+        ${destinos().map(x => `<option ${x === d ? 'selected' : ''}>${x}</option>`).join('')}
+      </select>
+    </h2>
+    <p class="nota">Fórmula: US MILL × ${(100 - descuento() * 100).toFixed(0)}% + flete a frontera. Δ compara contra la mediana de su grupo (medida + grado + especie). ≈ = US MILL estimado (Tolko no lo publica en esa pestaña).</p>
+    <div class="tabla-wrap"><table>
+      <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Vol</th><th>Status</th><th class="r">US MILL</th><th class="r">${esc(d)}</th><th class="r">Δ grupo</th></tr>
+      ${ops.map(o => filaOp(o)).join('') || '<tr><td colspan="9" class="nota">Sin datos suficientes.</td></tr>'}
+    </table></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h2>Fletes vigentes (USD/MBF)</h2>${tablaFletesMini()}</div>
+    <div class="card"><h2>Notas de la lista</h2>
+      <p class="nota">Fuentes cargadas el ${fmtFecha(S.fecha)}: ${S.boot.listas.filter(l => l.fecha === S.fecha).map(l => `<span class="chip neutro">${l.fuente === 'email_lowgrade' ? 'Correo Low Grade' : l.fuente === 'xlsx_semanal' ? 'Excel semanal' : l.fuente}</span>`).join(' ')}</p>
+      <p class="nota">El correo Low Grade trae US MILL real para #3 y ECON — la pestaña #3 & ECON del Excel se oculta para no duplicar (puedes verla con el filtro de pestaña en el Explorador tras activar duplicados en Configuración).</p>
+      <p class="nota">Prompt = rojo en la lista de Tolko = embarque inmediato. "Emb dd-mmm" = semana de producción.</p>
+    </div>
+  </div>`
+}
+function filaOp(o) {
+  const it = o.it, u = usmillEff(it)
+  return `<tr class="${S.sel.has(it.id) ? 'sel-row' : ''}">
+    <td><input type="checkbox" ${S.sel.has(it.id) ? 'checked' : ''} onchange="togSel('${it.id}')"></td>
+    <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b><br><span class="nota">${esc(it.pestana)}</span></td>
+    <td>${esc(it.mill || '')}</td>
+    <td>${esc(tallyTxt(it))}</td>
+    <td>${it.es_carro ? '<span class="chip ok">CARRO</span>' : `<span class="chip alerta">${it.mbf_est ? it.mbf_est + ' MBF' : 'armar'}</span>`}</td>
+    <td>${fmtStatus(it.status)}</td>
+    <td class="r num">${u ? (u.est ? '≈' : '') + Math.round(u.v) : '—'}</td>
+    ${costoTxt(o.c)}
+    <td class="r num" style="color:var(--ok)">${o.dlt === 0 ? '=' : o.dlt}</td>
+  </tr>`
+}
+function tablaFletesMini() {
+  const ds = destinos()
+  const gs = [...new Set(fletes().map(f => f.grupo_flete))]
+  return `<div class="tabla-wrap"><table>
+    <tr><th>Grupo de mills</th>${ds.map(d => `<th class="r">${esc(d)}</th>`).join('')}</tr>
+    ${gs.map(g => `<tr><td>${esc(g)}<br><span class="nota">${millsDeGrupo(g)}</span></td>${ds.map(d => `<td class="r num">${flete(d, g) ?? '—'}</td>`).join('')}</tr>`).join('')}
+  </table></div>
+  <p class="nota">Descuento vigente: <b>${(descuento() * 100).toFixed(0)}%</b> sobre US MILL. Edita fletes y descuento en Configuración.</p>`
+}
+function millsDeGrupo(g) {
+  const m = param('mills') || {}
+  return Object.entries(m).filter(([k, v]) => v.grupo === g).map(([k]) => k).filter((v, i, a) => a.indexOf(v) === i).join(', ')
+}
+
+/* ---------- EXPLORADOR ---------- */
+function renderExplorador() {
+  const arr = filtrar(itemsVisibles())
+  ordenar(arr)
+  const F = S.filtros
+  const opts = (k) => [...new Set(itemsVisibles().map(i => i[k]).filter(Boolean))].sort()
+  $('v-explorador').innerHTML = `
+  <div class="card">
+    <div class="filtros">
+      <select onchange="S.filtros.pestana=this.value;renderExplorador()">
+        <option value="">Todas las pestañas</option>
+        ${opts('pestana').map(p => `<option ${F.pestana === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+      </select>
+      <select onchange="S.filtros.size=this.value;renderExplorador()">
+        <option value="">Medida</option>
+        ${opts('size').map(p => `<option ${F.size === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+      </select>
+      <select onchange="S.filtros.species=this.value;renderExplorador()">
+        <option value="">Especie</option>
+        ${opts('species').map(p => `<option ${F.species === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+      </select>
+      <select onchange="S.filtros.mill=this.value;renderExplorador()">
+        <option value="">Mill</option>
+        ${opts('mill').map(p => `<option ${F.mill === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+      </select>
+      <label><input type="checkbox" ${F.prompt ? 'checked' : ''} onchange="S.filtros.prompt=this.checked;renderExplorador()"> Solo prompt</label>
+      <label><input type="checkbox" ${F.carros ? 'checked' : ''} onchange="S.filtros.carros=this.checked;renderExplorador()"> Solo carros</label>
+      <input type="text" placeholder="Buscar…" value="${esc(F.q)}" oninput="S.filtros.q=this.value;renderExplorador()" style="min-width:140px">
+      <span class="nota num">${arr.length} filas</span>
+    </div>
+    <div class="tabla-wrap" style="max-height:64vh;overflow-y:auto"><table>
+      <tr>
+        <th><input type="checkbox" onchange="selTodos(this.checked)" title="Seleccionar visibles"></th>
+        <th onclick="setSort('producto')">Producto</th>
+        <th onclick="setSort('mill')">Mill</th>
+        <th>Tally</th>
+        <th onclick="setSort('mbf')">Vol</th>
+        <th onclick="setSort('status')">Status</th>
+        <th class="r" onclick="setSort('chi')">Chicago</th>
+        <th class="r" onclick="setSort('usm')">US Mill</th>
+        <th class="r" onclick="setSort('c1')">El Paso</th>
+        <th class="r" onclick="setSort('c2')">Calexico</th>
+        <th class="r" onclick="setSort('valor')">$ Carro/Lote</th>
+      </tr>
+      ${arr.map(it => filaExp(it)).join('')}
+    </table></div>
+    <p class="nota">Costos = US MILL × ${(100 - descuento() * 100).toFixed(0)}% + flete. ≈ = estimado (sin US MILL publicado). $ Carro/Lote = MBF × costo ${esc(S.destinoSel)}.</p>
+  </div>`
+}
+function filtrar(arr) {
+  const F = S.filtros
+  return arr.filter(it =>
+    (!F.pestana || it.pestana === F.pestana) &&
+    (!F.size || it.size === F.size) &&
+    (!F.species || it.species === F.species) &&
+    (!F.mill || it.mill === F.mill) &&
+    (!F.prompt || it.es_prompt) &&
+    (!F.carros || it.es_carro) &&
+    (!F.q || (it.producto + ' ' + it.pestana + ' ' + it.grade + ' ' + it.seccion).toLowerCase().includes(F.q.toLowerCase()))
+  )
+}
+function valSort(it, col) {
+  if (col === 'producto') return (it.size || '') + (it.grade || '')
+  if (col === 'mill') return it.mill || ''
+  if (col === 'mbf') return it.mbf_est || 0
+  if (col === 'status') return it.status === 'PMT' ? '0' : (it.status || 'z')
+  if (col === 'chi') return it.precio_chi ?? 9e9
+  if (col === 'usm') { const u = usmillEff(it); return u ? u.v : 9e9 }
+  if (col === 'c1') { const c = costo(it, 'El Paso'); return c ? c.v : 9e9 }
+  if (col === 'c2') { const c = costo(it, 'Calexico'); return c ? c.v : 9e9 }
+  if (col === 'valor') { const c = costo(it, S.destinoSel); return c && it.mbf_est ? c.v * it.mbf_est : 0 }
+  return 0
+}
+function ordenar(arr) { const { col, dir } = S.sort; arr.sort((a, b) => (valSort(a, col) > valSort(b, col) ? 1 : -1) * dir) }
+function setSort(col) { S.sort = { col, dir: S.sort.col === col ? -S.sort.dir : 1 }; renderExplorador() }
+function filaExp(it) {
+  const c1 = costo(it, 'El Paso'), c2 = costo(it, 'Calexico'), cd = costo(it, S.destinoSel)
+  const valor = cd && it.mbf_est ? cd.v * it.mbf_est : null
+  return `<tr class="${S.sel.has(it.id) ? 'sel-row' : ''}">
+    <td><input type="checkbox" ${S.sel.has(it.id) ? 'checked' : ''} onchange="togSel('${it.id}')"></td>
+    <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b><br><span class="nota">${esc(it.pestana)}${it.fuente === 'email_lowgrade' ? ' · correo' : ''}</span></td>
+    <td>${esc(it.mill || '')}<br><span class="nota">${esc(it.grupo_flete || 'sin flete')}</span></td>
+    <td style="white-space:normal;max-width:190px">${esc(tallyTxt(it))}</td>
+    <td>${it.es_carro ? '<span class="chip ok">CARRO</span>' : '<span class="chip alerta">armar</span>'}${it.mbf_est ? `<br><span class="nota num">${it.mbf_est} MBF</span>` : ''}</td>
+    <td>${fmtStatus(it.status)}</td>
+    <td class="r num">${it.precio_chi != null ? Math.round(it.precio_chi) : '—'}</td>
+    <td class="r num">${(() => { const u = usmillEff(it); return u ? (u.est ? '<span class="est">≈</span>' : '') + Math.round(u.v) : '—' })()}</td>
+    ${costoTxt(c1)}${costoTxt(c2)}
+    <td class="r num">${valor ? f$(valor) : '—'}</td>
+  </tr>`
+}
+function selTodos(on) {
+  const arr = filtrar(itemsVisibles())
+  for (const it of arr) { if (on) S.sel.set(it.id, it); else S.sel.delete(it.id) }
+  renderExplorador(); renderSelBadge()
+}
+function togSel(id) {
+  if (S.sel.has(id)) S.sel.delete(id)
+  else { const it = S.items.find(i => i.id === id); if (it) S.sel.set(id, it) }
+  renderVista(); renderSelBadge()
+}
+function renderSelBadge() {
+  $('sel-badge').textContent = S.sel.size
+  $('sel-fab-n').textContent = S.sel.size
+  $('sel-fab').classList.toggle('oculto', S.sel.size === 0 || S.vista === 'seleccion')
+}
+
+/* ---------- SELECCIÓN / WhatsApp ---------- */
+function lineaOferta(it, i, destino, ajuste) {
+  const c = costo(it, destino)
+  const precio = c ? c.v + (ajuste || 0) : null
+  const tag = it.es_carro ? `Carro#${i}` : `Lote#${i}${it.mbf_est ? ` (${it.mbf_est} MBF)` : ''}`
+  const prod = [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ')
+  return `${tag}: ${prod} ${tallyTxt(it)} (${statusTxt(it.status)}) ${precio ? '$' + precio + '/MPT ' + destino : 'costo pendiente'}${c && c.est ? ' *' : ''}`
+}
+function textoOferta() {
+  const items = [...S.sel.values()]
+  const d = S.destinoSel, aj = +S.ajuste || 0
+  const lineas = items.map((it, i) => lineaOferta(it, i + 1, d, aj))
+  let out = lineas.join('\n')
+  if (items.some(it => { const c = costo(it, d); return c && c.est })) out += '\n* costo estimado (Tolko no publica US MILL en esa pestaña)'
+  return out
+}
+function renderSeleccion() {
+  const items = [...S.sel.values()]
+  $('v-seleccion').innerHTML = `
+  <div class="card">
+    <h2>Lista para WhatsApp</h2>
+    <div class="filtros">
+      <label>Destino
+        <select onchange="S.destinoSel=this.value;localStorage.tolkoDestino=this.value;renderSeleccion()">
+          ${destinos().map(x => `<option ${x === S.destinoSel ? 'selected' : ''}>${x}</option>`).join('')}
+        </select>
+      </label>
+      <label>Ajuste $/MPT <input type="number" value="${S.ajuste}" style="width:90px" onchange="S.ajuste=this.value;renderSeleccion()"></label>
+      <button class="mini" onclick="copiarOferta()">Copiar lista</button>
+      <button class="sec mini" onclick="S.sel.clear();renderSeleccion();renderSelBadge()">Limpiar</button>
+    </div>
+    <pre class="oferta" id="oferta-pre">${esc(items.length ? textoOferta() : 'Selecciona items en el Explorador o el Resumen…')}</pre>
+  </div>
+  <div class="card">
+    <h2>Detalle de la selección (${items.length})</h2>
+    <div class="tabla-wrap"><table>
+      <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Status</th><th class="r">US Mill</th><th class="r">${esc(S.destinoSel)}</th><th class="r">MBF</th><th class="r">$ Total</th></tr>
+      ${items.map(it => {
+        const c = costo(it, S.destinoSel), u = usmillEff(it)
+        return `<tr>
+          <td><button class="sec mini" onclick="togSel('${it.id}')">✕</button></td>
+          <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b></td>
+          <td>${esc(it.mill || '')}</td><td style="white-space:normal">${esc(tallyTxt(it))}</td>
+          <td>${fmtStatus(it.status)}</td>
+          <td class="r num">${u ? (u.est ? '≈' : '') + Math.round(u.v) : '—'}</td>
+          ${costoTxt(c)}
+          <td class="r num">${it.mbf_est ?? '—'}</td>
+          <td class="r num">${c && it.mbf_est ? f$((c.v + (+S.ajuste || 0)) * it.mbf_est) : '—'}</td>
+        </tr>`
+      }).join('') || '<tr><td colspan="9" class="nota">Vacía.</td></tr>'}
+    </table></div>
+    <p class="nota num">Valor total selección: <b>${f$([...S.sel.values()].reduce((a, it) => { const c = costo(it, S.destinoSel); return a + (c && it.mbf_est ? (c.v + (+S.ajuste || 0)) * it.mbf_est : 0) }, 0))}</b> · MBF: <b>${Math.round([...S.sel.values()].reduce((a, it) => a + (it.mbf_est || 0), 0))}</b></p>
+  </div>`
+}
+async function copiarOferta() {
+  try { await navigator.clipboard.writeText(textoOferta()); toast('Lista copiada — pégala en WhatsApp') }
+  catch (e) {
+    const p = $('oferta-pre'); const r = document.createRange(); r.selectNode(p)
+    getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand('copy')
+    toast('Lista copiada')
+  }
+}
+
+/* ---------- HISTÓRICOS ---------- */
+function productosUnicos() {
+  const set = new Map()
+  for (const it of S.items) if (it.size && it.grade) set.set(`${it.size}|${it.grade}|${it.species || ''}`, true)
+  return [...set.keys()].sort()
+}
+function renderHistoricos() {
+  const prods = productosUnicos()
+  const selVal = S.prodSerie || prods[0] || ''
+  S.prodSerie = selVal
+  $('v-historicos').innerHTML = `
+  <div class="card">
+    <h2>Evolución de precios</h2>
+    <div class="filtros">
+      <select onchange="S.prodSerie=this.value;cargarSerie()">
+        ${prods.map(p => { const [s, g, e] = p.split('|'); return `<option value="${p}" ${p === selVal ? 'selected' : ''}>${e} ${s} ${gradeTxt(g)}</option>` }).join('')}
+      </select>
+      <label><input type="radio" name="sm" ${S.serieModo === 'usmill' ? 'checked' : ''} onchange="S.serieModo='usmill';cargarSerie()"> US MILL</label>
+      <label><input type="radio" name="sm" ${S.serieModo === 'chi' ? 'checked' : ''} onchange="S.serieModo='chi';cargarSerie()"> Chicago</label>
+    </div>
+    <div id="serie-chart"><p class="nota">Cargando…</p></div>
+  </div>
+  <div class="card">
+    <h2>Listas guardadas</h2>
+    <div class="tabla-wrap"><table>
+      <tr><th>Fecha</th><th>Fuente</th><th>Título</th><th></th></tr>
+      ${(S.boot.listas || []).map(l => `<tr>
+        <td class="num">${l.fecha}</td>
+        <td><span class="chip ${l.fuente === 'email_lowgrade' ? 'info' : 'neutro'}">${l.fuente === 'email_lowgrade' ? 'Correo Low Grade' : l.fuente === 'xlsx_semanal' ? 'Excel semanal' : l.fuente}</span></td>
+        <td style="white-space:normal">${esc(l.titulo || '')}</td>
+        <td><button class="sec mini" onclick="borrarLista('${l.id}','${l.fecha}')">Borrar</button></td>
+      </tr>`).join('')}
+    </table></div>
+  </div>`
+  cargarSerie()
+}
+async function cargarSerie() {
+  const [size, grade, species] = (S.prodSerie || '||').split('|')
+  const box = $('serie-chart'); if (!box) return
+  try {
+    const r = await api('serie', { size, grade, species: species || undefined })
+    const key = S.serieModo === 'usmill' ? 'precio_usmill' : 'precio_chi'
+    const pts = {}
+    for (const row of r.serie) {
+      const v = row[key] == null ? null : parseFloat(row[key])
+      if (v == null) continue
+      const f = row.tolko_listas.fecha
+      const m = row.mill || '?'
+      pts[m] = pts[m] || {}
+      pts[m][f] = pts[m][f] == null ? v : Math.min(pts[m][f], v)
+    }
+    box.innerHTML = svgSerie(pts) || '<p class="nota">Sin datos para esta combinación (US MILL solo existe en FIR y el correo Low Grade; prueba el modo Chicago).</p>'
+  } catch (e) { box.innerHTML = `<p class="nota" style="color:var(--riesgo)">Error: ${esc(e.message)}</p>` }
+}
+function svgSerie(pts) {
+  const mills = Object.keys(pts)
+  if (!mills.length) return ''
+  const fechas = [...new Set(mills.flatMap(m => Object.keys(pts[m])))].sort()
+  const vals = mills.flatMap(m => Object.values(pts[m]))
+  if (!vals.length) return ''
+  const min = Math.min(...vals), max = Math.max(...vals)
+  const pad = Math.max(8, (max - min) * .15), lo = min - pad, hi = max + pad
+  const W = 760, H = 240, L = 46, R = 12, T = 12, B = 28
+  const x = f => L + (fechas.length === 1 ? (W - L - R) / 2 : (W - L - R) * fechas.indexOf(f) / (fechas.length - 1))
+  const y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo))
+  const colores = { HVT: 'var(--acc)', LVT: 'var(--acc2)', LD: 'var(--info)', AL: 'var(--alerta)', SC: 'var(--riesgo)', QUT: 'var(--faint)' }
+  let s = `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:520px">`
+  s += `<line x1="${L}" y1="${y(lo)}" x2="${W - R}" y2="${y(lo)}" stroke="var(--line)"/>`
+  for (const v of [min, max]) s += `<text x="4" y="${y(v) + 4}" font-size="11" fill="var(--faint)" class="num">${Math.round(v)}</text><line x1="${L}" y1="${y(v)}" x2="${W - R}" y2="${y(v)}" stroke="var(--line)" stroke-dasharray="3 4"/>`
+  for (const f of fechas) s += `<text x="${x(f)}" y="${H - 8}" font-size="10.5" fill="var(--faint)" text-anchor="middle">${fmtFecha(f)}</text>`
+  for (const m of mills) {
+    const c = colores[m] || 'var(--sub)'
+    const fs = fechas.filter(f => pts[m][f] != null)
+    s += `<polyline fill="none" stroke="${c}" stroke-width="2" points="${fs.map(f => x(f) + ',' + y(pts[m][f])).join(' ')}"/>`
+    for (const f of fs) s += `<circle cx="${x(f)}" cy="${y(pts[m][f])}" r="3.4" fill="${c}"/><text x="${x(f)}" y="${y(pts[m][f]) - 7}" font-size="10.5" fill="${c}" text-anchor="middle" class="num">${Math.round(pts[m][f])}</text>`
+  }
+  s += '</svg></div><div class="leyenda">' + mills.map(m => `<span class="chip neutro" style="color:${colores[m] || 'var(--sub)'}">● ${m}</span>`).join('') + '</div>'
+  return s
+}
+async function borrarLista(id, fecha) {
+  if (!confirm(`¿Borrar la lista del ${fecha}? Se eliminan sus items del histórico.`)) return
+  try { await api('borrar_lista', { lista_id: id }); toast('Lista borrada'); await cargarBoot() } catch (e) { toast('Error: ' + e.message, true) }
+}
+
+/* ---------- CONFIGURACIÓN ---------- */
+function renderConfig() {
+  const ds = destinos()
+  const gs = ['High Level', 'Armstrong/Lavington', 'Lakeview/Quesnel', 'Kelowna']
+  const sp = param('spread_chi_usmill') || {}
+  $('v-config').innerHTML = `
+  <div class="grid2">
+  <div class="card">
+    <h2>Fletes a destino (USD/MBF)</h2>
+    <p class="nota">Por grupo de mills (FRT Group de Tolko). Deja vacío si no aplica.</p>
+    ${ds.map(d => `
+      <h3>${esc(d)} <button class="sec mini" onclick="borrarDestino('${esc(d)}')">Eliminar destino</button></h3>
+      ${gs.map(g => {
+        const v = flete(d, g)
+        return `<div class="filtros"><label style="min-width:190px">${esc(g)}</label>
+          <input type="number" id="fl-${btoa(d + '|' + g).replace(/=/g, '')}" value="${v ?? ''}" style="width:110px">
+          <button class="mini" onclick="guardarFlete('${esc(d)}','${esc(g)}')">Guardar</button></div>`
+      }).join('')}`).join('')}
+    <h3>Agregar destino</h3>
+    <div class="filtros">
+      <input type="text" id="nuevo-destino" placeholder="Nombre (ej. Laredo)" style="width:150px">
+      ${gs.slice(0, 3).map((g, i) => `<input type="number" id="nd-${i}" placeholder="${g.split('/')[0]}" style="width:105px" title="${g}">`).join('')}
+      <button class="mini" onclick="agregarDestino()">Agregar</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Parámetros del costo</h2>
+    <div class="filtros"><label>Descuento Tolko (%)</label>
+      <input type="number" id="cfg-desc" value="${(descuento() * 100).toFixed(1)}" style="width:90px" step="0.5">
+      <button class="mini" onclick="guardarDescuento()">Guardar</button></div>
+    <h3>Spread Chicago → US MILL (estimador)</h3>
+    <p class="nota">Donde Tolko NO publica US MILL (studs, dimension, MSR, A&J), se estima: US MILL ≈ Chicago − spread. Basado en los spreads reales observados en FIR y el correo Low Grade. Los costos así calculados se marcan con ≈.</p>
+    ${['2x4', '2x6', '2x8', '2x10', '2x12', 'default'].map(k => `<div class="filtros"><label style="min-width:70px">${k}</label>
+      <input type="number" id="sp-${k.replace(/[^\w]/g, '')}" value="${sp[k] ?? ''}" style="width:90px">
+    </div>`).join('')}
+    <button class="mini" onclick="guardarSpreads()">Guardar spreads</button>
+    <h3>Vista</h3>
+    <label class="nota"><input type="checkbox" ${S.showDups ? 'checked' : ''} onchange="S.showDups=this.checked;renderTodo()"> Mostrar pestaña #3 & ECON del Excel aunque exista el correo Low Grade (duplicados)</label>
+    <h3>Mills de Tolko</h3>
+    <div class="tabla-wrap"><table>
+      <tr><th>Código</th><th>Mill</th><th>Grupo flete</th></tr>
+      ${Object.entries(param('mills') || {}).map(([k, v]) => `<tr><td><b>${k}</b></td><td>${esc(v.nombre)}</td><td>${esc(v.grupo)}</td></tr>`).join('')}
+    </table></div>
+  </div>
+  </div>`
+}
+async function guardarFlete(d, g) {
+  const inp = $('fl-' + btoa(d + '|' + g).replace(/=/g, ''))
+  const v = parseFloat(inp.value)
+  try {
+    if (!isFinite(v)) { await api('del_flete', { destino: d, grupo_flete: g }); toast(`Flete ${d} · ${g} eliminado`) }
+    else { await api('set_flete', { destino: d, grupo_flete: g, usd_mbf: v }); toast(`Flete ${d} · ${g} = $${v}`) }
+    S.boot = await api('bootstrap')
+  } catch (e) { toast('Error: ' + e.message, true) }
+}
+async function agregarDestino() {
+  const d = $('nuevo-destino').value.trim()
+  if (!d) return toast('Pon el nombre del destino', true)
+  const gs = ['High Level', 'Armstrong/Lavington', 'Lakeview/Quesnel']
+  try {
+    for (let i = 0; i < 3; i++) {
+      const v = parseFloat($('nd-' + i).value)
+      if (isFinite(v)) await api('set_flete', { destino: d, grupo_flete: gs[i], usd_mbf: v })
+    }
+    S.boot = await api('bootstrap'); toast('Destino agregado'); renderConfig()
+  } catch (e) { toast('Error: ' + e.message, true) }
+}
+async function borrarDestino(d) {
+  if (!confirm(`¿Eliminar todos los fletes de ${d}?`)) return
+  try {
+    for (const f of fletes().filter(f => f.destino === d)) await api('del_flete', { destino: d, grupo_flete: f.grupo_flete })
+    S.boot = await api('bootstrap'); toast('Destino eliminado'); renderConfig()
+  } catch (e) { toast('Error: ' + e.message, true) }
+}
+async function guardarDescuento() {
+  const v = parseFloat($('cfg-desc').value)
+  if (!isFinite(v)) return
+  try { await api('set_param', { param: 'descuento', valor: v / 100 }); S.boot = await api('bootstrap'); toast('Descuento = ' + v + '%'); renderTodo() }
+  catch (e) { toast('Error: ' + e.message, true) }
+}
+async function guardarSpreads() {
+  const out = {}
+  for (const k of ['2x4', '2x6', '2x8', '2x10', '2x12', 'default']) {
+    const v = parseFloat($('sp-' + k.replace(/[^\w]/g, '')).value)
+    if (isFinite(v)) out[k] = v
+  }
+  try { await api('set_param', { param: 'spread_chi_usmill', valor: out }); S.boot = await api('bootstrap'); toast('Spreads guardados'); renderTodo() }
+  catch (e) { toast('Error: ' + e.message, true) }
+}
+
+/* ---------- CARGAR ---------- */
+function renderCargar() {
+  const hoy = new Date().toISOString().slice(0, 10)
+  $('v-cargar').innerHTML = `
+  <div class="grid2">
+  <div class="card">
+    <h2>Excel semanal (Tolko U.S. Sales List)</h2>
+    <p class="nota">Baja el .xlsx desde el link del correo semanal y súbelo aquí. La fecha se detecta del nombre del archivo.</p>
+    <div class="filtros">
+      <input type="file" id="file-xlsx" accept=".xlsx,.xls">
+      <label>Fecha <input type="date" id="fecha-xlsx" value="${hoy}"></label>
+    </div>
+    <button onclick="cargarExcel()">Procesar y guardar</button>
+    <div id="prev-xlsx"></div>
+  </div>
+  <div class="card">
+    <h2>Correo Low Grade (pegar tabla)</h2>
+    <p class="nota">En Gmail selecciona la tabla del correo de Brittny (clic antes del primer renglón, arrastra hasta el final), cópiala (Ctrl+C) y pégala aquí. Trae US MILL y CDN MILL.</p>
+    <textarea id="texto-lg" placeholder="Pega aquí la tabla del correo…"></textarea>
+    <div class="filtros" style="margin-top:8px">
+      <label>Fecha del correo <input type="date" id="fecha-lg" value="${hoy}"></label>
+      <button onclick="cargarLG()">Procesar y guardar</button>
+    </div>
+    <div id="prev-lg"></div>
+  </div>
+  </div>`
+}
+function resumenParseo(items, warnings) {
+  const por = {}
+  for (const it of items) { por[it.pestana] = (por[it.pestana] || 0) + 1 }
+  return `<p class="nota">${items.length} items: ${Object.entries(por).map(([k, n]) => `${esc(k)} (${n})`).join(' · ')}</p>` +
+    (warnings.length ? `<p class="nota" style="color:var(--alerta)">${warnings.map(esc).join('<br>')}</p>` : '')
+}
+async function cargarExcel() {
+  const f = $('file-xlsx').files[0]
+  if (!f) return toast('Elige el archivo .xlsx', true)
+  try {
+    const buf = await f.arrayBuffer()
+    const wb = XLSX.read(buf, { cellDates: true })
+    const sheets = {}
+    for (const n of wb.SheetNames) sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null })
+    let fecha = $('fecha-xlsx').value
+    const meses = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 }
+    const m = f.name.match(/([A-Za-z]+)_(\d{1,2})(?:st|nd|rd|th)?_(\d{4})/)
+    if (m && meses[m[1].toLowerCase()]) fecha = `${m[3]}-${String(meses[m[1].toLowerCase()]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`
+    const { items, warnings } = TolkoParser.parseWorkbook(sheets, { fecha })
+    $('prev-xlsx').innerHTML = resumenParseo(items, warnings)
+    if (!items.length) return toast('No se encontraron items — ¿cambió el formato?', true)
+    const r = await api('ingest', { fecha, fuente: 'xlsx_semanal', titulo: `Tolko U.S. Sales List — ${fecha}`, archivo: f.name, items })
+    toast(`Guardado: ${r.n} items (${fecha})`)
+    await cargarBoot()
+  } catch (e) { toast('Error: ' + e.message, true) }
+}
+async function cargarLG() {
+  const txt = $('texto-lg').value
+  if (!txt.trim()) return toast('Pega la tabla del correo', true)
+  const fecha = $('fecha-lg').value
+  try {
+    const { items, warnings } = TolkoParser.parseLowGradeText(txt, { year: parseInt(fecha.slice(0, 4)) })
+    $('prev-lg').innerHTML = resumenParseo(items, warnings)
+    if (!items.length) return toast('No se reconocieron renglones. Verifica que copiaste la tabla completa (con encabezados).', true)
+    const r = await api('ingest', { fecha, fuente: 'email_lowgrade', titulo: `Tolko Low Grade — ${fecha}`, archivo: 'pegado manual', items })
+    toast(`Guardado: ${r.n} items (${fecha})`)
+    await cargarBoot()
+  } catch (e) { toast('Error: ' + e.message, true) }
+}
+
+/* ---------- tema ---------- */
+function aplicarTema() {
+  const t = localStorage.tolkoTema || 'auto'
+  if (t === 'auto') document.documentElement.removeAttribute('data-theme')
+  else document.documentElement.setAttribute('data-theme', t)
+  $('tema-btn').textContent = 'Tema: ' + (t === 'auto' ? 'Auto' : t === 'light' ? 'Día' : 'Noche')
+}
+function ciclarTema() {
+  const orden = ['auto', 'light', 'dark']
+  const t = localStorage.tolkoTema || 'auto'
+  localStorage.tolkoTema = orden[(orden.indexOf(t) + 1) % 3]
+  aplicarTema()
+}
+
+/* ---------- init ---------- */
+aplicarTema()
+$('clave-in').addEventListener('keydown', e => { if (e.key === 'Enter') entrar() })
+if (S.clave) {
+  cargarBoot().then(() => $('login').classList.add('oculto')).catch(() => {})
+}
+</script>
+</body>
+</html>
