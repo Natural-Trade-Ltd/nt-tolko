@@ -55,11 +55,13 @@ if (modo === 'excel') {
   const sheets = {}
   for (const name of wb.SheetNames) sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null })
   const fecha = getFlag('--fecha') || fechaDeNombre(path.basename(ruta)) || new Date().toISOString().slice(0, 10)
-  console.log('Fecha de lista:', fecha)
+  const esCDN = /_CDN/i.test(path.basename(ruta))
+  const fuente = esCDN ? 'xlsx_cdn' : 'xlsx_semanal'
+  console.log('Fecha de lista:', fecha, '| fuente:', fuente)
   const { items, warnings } = TolkoParser.parseWorkbook(sheets, { fecha })
   resumen(items, warnings)
   if (flags.includes('--json')) fs.writeFileSync('parse-out.json', JSON.stringify(items, null, 1))
-  await publicar({ action: 'ingest', fecha, fuente: 'xlsx_semanal', titulo: `Tolko U.S. Sales List — ${fecha}`, archivo: path.basename(ruta), items })
+  await publicar({ action: 'ingest', fecha, fuente, titulo: `Tolko ${esCDN ? 'Canadian' : 'U.S.'} Sales List — ${fecha}`, archivo: path.basename(ruta), items })
 } else if (modo === 'lowgrade') {
   const data = JSON.parse(fs.readFileSync(ruta, 'utf8'))
   const fecha = getFlag('--fecha') || data.fecha

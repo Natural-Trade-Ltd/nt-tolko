@@ -299,7 +299,7 @@
   function parseStudSheet(pestana, rows, opts) {
     const items = [], warnings = []
     let seccion = null, grade = null, species = null, size = null
-    let statusCols = null, pcsCol = 6, cbCol = 7, chiCol = 8
+    let statusCols = null, pcsCol = 6, cbCol = 7, precioCol = 8, precioKind = 'chi'
     if (/4"/.test(pestana)) size = '2x4'
     if (/6"/.test(pestana)) size = '2x6'
     const defaultSize = size
@@ -317,12 +317,13 @@
           const t = up(v)
           if (t.startsWith('PCS')) pcsCol = i
           else if (t.includes('PKG/CB')) cbCol = i
-          else if (t.includes('CHI')) chiCol = i
+          else if (t.includes('CDN')) { precioCol = i; precioKind = 'cdn' }
+          else if (t.includes('CHI')) { precioCol = i; precioKind = 'chi' }
         })
         continue
       }
       // fila de sección/grado (sin mill en B)
-      if (a && !esMill(b) && !num(row[chiCol])) {
+      if (a && !esMill(b) && !num(row[precioCol])) {
         const t = up(a)
         const msz = t.match(/(\d+)\s*X\s*(\d+)/)
         if (msz) size = `${parseInt(msz[1])}x${parseInt(msz[2])}`
@@ -340,7 +341,7 @@
       const lenFt = trimFt(trim)
       const pcs = num(row[pcsCol])
       const cb = num(row[cbCol])
-      const chi = num(row[chiCol])
+      const precio = num(row[precioCol])
       const sp = speciesFrom(trim, species)
       const partes = [], tally = {}
       let unidades = 0, carrosAF = 0, statusFinal = null
@@ -370,7 +371,8 @@
         pestana, seccion, mill: b, size, grade, species: sp,
         producto: [size, grade, sp, trim].filter(Boolean).join(' '),
         pcs_pkg: pcs, tally, status: statusFinal,
-        precio_chi: chi,
+        precio_chi: precioKind === 'chi' ? precio : null,
+        precio_cdnmill: precioKind === 'cdn' ? precio : null,
         mbf_est: mbf,
         es_carro: cb && totalPkgs ? totalPkgs >= cb : (mbf != null ? mbf >= CAR_MBF_MIN : null),
         volumen_raw: partes.join(' · ') + (cb ? ` (carro=${cb} pqt)` : ''),
@@ -383,7 +385,7 @@
   /* ---------- Pestaña A & J GRADE ----------------------------------------- */
   function parseAJSheet(pestana, rows, opts) {
     const items = [], warnings = []
-    let grade = null, size = null, species = 'SPF', statusCols = null, chiCol = 6, pcs = null
+    let grade = null, size = null, species = 'SPF', statusCols = null, precioCol = 6, precioKind = 'chi', pcs = null
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r] || []
       const a = s(row[0]), b = s(row[1])
@@ -408,13 +410,17 @@
             if (d) statusCols.push({ key: d, ci })
           }
         }
-        row.forEach((v, i) => { if (up(v).includes('CHI')) chiCol = i })
+        row.forEach((v, i) => {
+          const t = up(v)
+          if (t.includes('CDN')) { precioCol = i; precioKind = 'cdn' }
+          else if (t.includes('CHI')) { precioCol = i; precioKind = 'chi' }
+        })
         continue
       }
       if (!statusCols || !a || !esMill(a)) continue
       const lenFt = num(b)
       if (!lenFt || !size) continue
-      const chi = num(row[chiCol])
+      const precio = num(row[precioCol])
       const pcsEf = pcs || STD_PCS[size] || null
       for (const sc of statusCols) {
         const q = num(row[sc.ci])
@@ -425,7 +431,9 @@
           pestana, seccion: grade, mill: a, size, grade, species,
           producto: `${size} ${grade} ${lenFt}' ${species}`,
           pcs_pkg: pcsEf, tally: { [lenFt]: q }, status: sc.key,
-          precio_chi: chi, mbf_est: mbf,
+          precio_chi: precioKind === 'chi' ? precio : null,
+          precio_cdnmill: precioKind === 'cdn' ? precio : null,
+          mbf_est: mbf,
           es_carro: mbf != null ? mbf >= CAR_MBF_MIN : null,
           volumen_raw: `${q} pqt de ${lenFt}'`, raw: row,
         }))

@@ -242,9 +242,12 @@ function spread(size) { const sp = param('spread_chi_usmill') || {}; const v = s
 const fletes = () => (S.boot?.fletes || []).filter(f => f.activo !== false)
 const destinos = () => [...new Set(fletes().map(f => f.destino))]
 function flete(destino, grupo) { const f = fletes().find(f => f.destino === destino && f.grupo_flete === grupo); return f ? +f.usd_mbf : null }
+const factorCdn = () => { const f = parseFloat(param('factor_cdn_usmill')); return isFinite(f) && f > 0 ? f : 1.134409 }
+const fxMercado = () => { const f = parseFloat(param('fx_usdcad')); return isFinite(f) && f > 0 ? f : 1.3865 }
 function usmillEff(it) {
-  if (it.precio_usmill != null) return { v: +it.precio_usmill, est: false }
-  if (it.precio_chi != null) return { v: +it.precio_chi - spread(it.size), est: true }
+  if (it.precio_usmill != null) return { v: +it.precio_usmill, est: false, src: 'US' }
+  if (it.precio_cdnmill != null) return { v: +it.precio_cdnmill / factorCdn(), est: false, src: 'CDN' }
+  if (it.precio_chi != null) return { v: +it.precio_chi - spread(it.size), est: true, src: '≈' }
   return null
 }
 function costo(it, destino) {
@@ -285,19 +288,56 @@ async function cargarItems() {
         it.fuente = listaDe[it.lista_id]?.fuente || ''
         return it
       })
+      unirCdn()
+      recalibrarFactor()
     }
   }
   renderTodo()
+}
+/* Une la lista CDN con la US (los archivos son gemelos renglón a renglón):
+   al item US se le pega el CDN MILL y el duplicado CDN se oculta */
+const tallySig = t => Object.entries(t || {}).map(([k, v]) => k + ':' + v).sort().join(',')
+const kOf = it => [it.pestana, it.mill, it.size, it.grade, it.species, it.status, tallySig(it.tally)].join('|')
+function unirCdn() {
+  const cdn = S.items.filter(i => i.fuente === 'xlsx_cdn')
+  if (!cdn.length) return
+  const idx = new Map(cdn.map(i => [kOf(i), i]))
+  for (const it of S.items) {
+    if (it.fuente !== 'xlsx_semanal') continue
+    const m = idx.get(kOf(it))
+    if (m) { if (it.precio_cdnmill == null) it.precio_cdnmill = m.precio_cdnmill; m._dup = true }
+  }
+}
+function factorObservado() {
+  const pares = S.items.filter(i => i.precio_usmill != null && i.precio_cdnmill != null)
+  let rs = pares.filter(i => i.precio_cdnmill % 1 !== 0) // sin redondear (del xlsx) = más precisos
+  if (rs.length < 5) rs = pares
+  const xs = rs.map(i => i.precio_cdnmill / i.precio_usmill).filter(x => x > 0.8 && x < 1.8).sort((a, b) => a - b)
+  return xs.length >= 5 ? xs[Math.floor(xs.length / 2)] : null
+}
+async function recalibrarFactor() {
+  const obs = factorObservado()
+  if (!obs) return
+  if (Math.abs(obs - factorCdn()) / factorCdn() > 0.002) {
+    try {
+      const v = Math.round(obs * 1e6) / 1e6
+      await api('set_param', { param: 'factor_cdn_usmill', valor: v })
+      const p = (S.boot.params || []).find(p => p.clave === 'factor_cdn_usmill')
+      if (p) p.valor = v; else S.boot.params.push({ clave: 'factor_cdn_usmill', valor: v })
+      toast('Factor CDN→US MILL recalibrado: ' + v.toFixed(4))
+    } catch (e) { /* silencioso */ }
+  }
 }
 async function recargar() { try { await cargarBoot(); toast('Datos recargados') } catch (e) { toast('Error: ' + e.message, true) } }
 async function cambiarFecha(f) { S.fecha = f; await cargarItems() }
 
 function itemsVisibles() {
-  let arr = S.items
+  let arr = S.items.filter(it => !it._dup)
   const hayCorreo = arr.some(it => it.fuente === 'email_lowgrade')
   if (hayCorreo && !S.showDups) arr = arr.filter(it => it.pestana !== '#3 & ECON')
   return arr
 }
+const fuenteLabel = f => f === 'email_lowgrade' ? 'Correo Low Grade' : f === 'xlsx_semanal' ? 'Excel US' : f === 'xlsx_cdn' ? 'Excel CDN' : f
 
 /* ---------- navegación / render ---------- */
 function ir(v) {
@@ -323,7 +363,7 @@ function renderResumen() {
   const prompt = arr.filter(i => i.es_prompt)
   const carros = prompt.filter(i => i.es_carro)
   const mbf = prompt.reduce((a, i) => a + (i.mbf_est || 0), 0)
-  const reales = arr.filter(i => i.precio_usmill != null)
+  const reales = arr.filter(i => { const u = usmillEff(i); return u && !u.est })
   const d = S.destinoSel
 
   // oportunidades: Δ vs mediana del grupo (size|grade|species) en el destino elegido
@@ -349,7 +389,7 @@ function renderResumen() {
     <div class="kpi"><div class="v num">${prompt.length}</div><div class="l">Prompt</div></div>
     <div class="kpi"><div class="v num">${carros.length}</div><div class="l">Carros completos prompt</div></div>
     <div class="kpi"><div class="v num">${Math.round(mbf).toLocaleString('en-US')}</div><div class="l">MBF prompt</div></div>
-    <div class="kpi"><div class="v num">${reales.length}</div><div class="l">Con US MILL real</div></div>
+    <div class="kpi"><div class="v num">${reales.length}</div><div class="l">Con precio real (US/CDN)</div></div>
   </div>
   <div class="card">
     <h2>Top oportunidades — costo puesto en
@@ -357,7 +397,7 @@ function renderResumen() {
         ${destinos().map(x => `<option ${x === d ? 'selected' : ''}>${x}</option>`).join('')}
       </select>
     </h2>
-    <p class="nota">Fórmula: US MILL × ${(100 - descuento() * 100).toFixed(0)}% + flete a frontera. Δ compara contra la mediana de su grupo (medida + grado + especie). ≈ = US MILL estimado (Tolko no lo publica en esa pestaña).</p>
+    <p class="nota">Fórmula: US MILL × ${(100 - descuento() * 100).toFixed(0)}% + flete a frontera. Donde no hay US MILL publicado se deriva de la lista CDN (CDN MILL ÷ ${factorCdn().toFixed(4)}). Δ compara contra la mediana de su grupo (medida + grado + especie). ≈ = estimado con spread (solo si falta la lista CDN).</p>
     <div class="tabla-wrap"><table>
       <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Vol</th><th>Status</th><th class="r">US MILL</th><th class="r">${esc(d)}</th><th class="r">Δ grupo</th></tr>
       ${ops.map(o => filaOp(o)).join('') || '<tr><td colspan="9" class="nota">Sin datos suficientes.</td></tr>'}
@@ -366,9 +406,9 @@ function renderResumen() {
   <div class="grid2">
     <div class="card"><h2>Fletes vigentes (USD/MBF)</h2>${tablaFletesMini()}</div>
     <div class="card"><h2>Notas de la lista</h2>
-      <p class="nota">Fuentes cargadas el ${fmtFecha(S.fecha)}: ${S.boot.listas.filter(l => l.fecha === S.fecha).map(l => `<span class="chip neutro">${l.fuente === 'email_lowgrade' ? 'Correo Low Grade' : l.fuente === 'xlsx_semanal' ? 'Excel semanal' : l.fuente}</span>`).join(' ')}</p>
-      <p class="nota">El correo Low Grade trae US MILL real para #3 y ECON — la pestaña #3 & ECON del Excel se oculta para no duplicar (puedes verla con el filtro de pestaña en el Explorador tras activar duplicados en Configuración).</p>
-      <p class="nota">Prompt = rojo en la lista de Tolko = embarque inmediato. "Emb dd-mmm" = semana de producción.</p>
+      <p class="nota">Fuentes cargadas el ${fmtFecha(S.fecha)}: ${S.boot.listas.filter(l => l.fecha === S.fecha).map(l => `<span class="chip neutro">${fuenteLabel(l.fuente)}</span>`).join(' ')}</p>
+      <p class="nota">La lista CDN trae el precio en aserradero (CAD) de TODAS las pestañas: se une renglón a renglón con la US y cierra el costo real (US MILL = CDN ÷ factor). El correo Low Grade trae US MILL directo para #3/ECON.</p>
+      <p class="nota">Prompt = rojo en la lista de Tolko = embarque inmediato. "Emb dd-mmm" = semana de producción. Ojo: pagar la lista CDN en CAD al FX de mercado (${fxMercado()}) NO equivale al 25% — tu trato en USD es mejor mientras USDCAD esté abajo de ${(factorCdn() / (1 - descuento())).toFixed(2)}.</p>
     </div>
   </div>`
 }
@@ -486,7 +526,7 @@ function filaExp(it) {
     <td>${it.es_carro ? '<span class="chip ok">CARRO</span>' : '<span class="chip alerta">armar</span>'}${it.mbf_est ? `<br><span class="nota num">${it.mbf_est} MBF</span>` : ''}</td>
     <td>${fmtStatus(it.status)}</td>
     <td class="r num">${it.precio_chi != null ? Math.round(it.precio_chi) : '—'}</td>
-    <td class="r num">${(() => { const u = usmillEff(it); return u ? (u.est ? '<span class="est">≈</span>' : '') + Math.round(u.v) : '—' })()}</td>
+    <td class="r num">${(() => { const u = usmillEff(it); return u ? (u.est ? '<span class="est">≈</span>' : '') + Math.round(u.v) + (u.src === 'CDN' ? '<span class="nota" title="derivado de la lista CDN (÷ factor)"> ᶜ</span>' : '') : '—' })()}</td>
     ${costoTxt(c1)}${costoTxt(c2)}
     <td class="r num">${valor ? f$(valor) : '—'}</td>
   </tr>`
@@ -598,7 +638,7 @@ function renderHistoricos() {
       <tr><th>Fecha</th><th>Fuente</th><th>Título</th><th></th></tr>
       ${(S.boot.listas || []).map(l => `<tr>
         <td class="num">${l.fecha}</td>
-        <td><span class="chip ${l.fuente === 'email_lowgrade' ? 'info' : 'neutro'}">${l.fuente === 'email_lowgrade' ? 'Correo Low Grade' : l.fuente === 'xlsx_semanal' ? 'Excel semanal' : l.fuente}</span></td>
+        <td><span class="chip ${l.fuente === 'email_lowgrade' ? 'info' : 'neutro'}">${fuenteLabel(l.fuente)}</span></td>
         <td style="white-space:normal">${esc(l.titulo || '')}</td>
         <td><button class="sec mini" onclick="borrarLista('${l.id}','${l.fecha}')">Borrar</button></td>
       </tr>`).join('')}
@@ -611,17 +651,19 @@ async function cargarSerie() {
   const box = $('serie-chart'); if (!box) return
   try {
     const r = await api('serie', { size, grade, species: species || undefined })
-    const key = S.serieModo === 'usmill' ? 'precio_usmill' : 'precio_chi'
     const pts = {}
     for (const row of r.serie) {
-      const v = row[key] == null ? null : parseFloat(row[key])
+      let v = null
+      if (S.serieModo === 'chi') v = row.precio_chi == null ? null : parseFloat(row.precio_chi)
+      else if (row.precio_usmill != null) v = parseFloat(row.precio_usmill)
+      else if (row.precio_cdnmill != null) v = parseFloat(row.precio_cdnmill) / factorCdn()
       if (v == null) continue
       const f = row.tolko_listas.fecha
       const m = row.mill || '?'
       pts[m] = pts[m] || {}
       pts[m][f] = pts[m][f] == null ? v : Math.min(pts[m][f], v)
     }
-    box.innerHTML = svgSerie(pts) || '<p class="nota">Sin datos para esta combinación (US MILL solo existe en FIR y el correo Low Grade; prueba el modo Chicago).</p>'
+    box.innerHTML = svgSerie(pts) || '<p class="nota">Sin datos para esta combinación en este modo.</p>'
   } catch (e) { box.innerHTML = `<p class="nota" style="color:var(--riesgo)">Error: ${esc(e.message)}</p>` }
 }
 function svgSerie(pts) {
@@ -684,8 +726,16 @@ function renderConfig() {
     <div class="filtros"><label>Descuento Tolko (%)</label>
       <input type="number" id="cfg-desc" value="${(descuento() * 100).toFixed(1)}" style="width:90px" step="0.5">
       <button class="mini" onclick="guardarDescuento()">Guardar</button></div>
-    <h3>Spread Chicago → US MILL (estimador)</h3>
-    <p class="nota">Donde Tolko NO publica US MILL (studs, dimension, MSR, A&J), se estima: US MILL ≈ Chicago − spread. Basado en los spreads reales observados en FIR y el correo Low Grade. Los costos así calculados se marcan con ≈.</p>
+    <h3>Lista CDN (precio en aserradero, CAD)</h3>
+    <p class="nota">US MILL equivalente = CDN MILL ÷ factor. El factor se recalibra solo al cargar listas (mediana de renglones con ambos precios). Observado en la lista actual: <b class="num">${factorObservado() ? factorObservado().toFixed(6) : '—'}</b>. Con el ${(descuento() * 100).toFixed(0)}% incluido, el factor implica USDCAD ${(factorCdn() / (1 - descuento())).toFixed(4)}; el FX de mercado es informativo para comparar si conviene pagar en CAD.</p>
+    <div class="filtros"><label>Factor CDN→US MILL</label>
+      <input type="number" id="cfg-factor" value="${factorCdn()}" style="width:120px" step="0.0001">
+      <button class="mini" onclick="guardarFactor()">Guardar</button></div>
+    <div class="filtros"><label>FX USD/CAD de mercado</label>
+      <input type="number" id="cfg-fx" value="${fxMercado()}" style="width:120px" step="0.0001">
+      <button class="mini" onclick="guardarFx()">Guardar</button></div>
+    <h3>Spread Chicago → US MILL (respaldo)</h3>
+    <p class="nota">Solo se usa si NO hay lista CDN de esa fecha: US MILL ≈ Chicago − spread (marcado con ≈). Validado el 18-ago: el error típico fue de $2–7/MBF vs el precio real.</p>
     ${['2x4', '2x6', '2x8', '2x10', '2x12', 'default'].map(k => `<div class="filtros"><label style="min-width:70px">${k}</label>
       <input type="number" id="sp-${k.replace(/[^\w]/g, '')}" value="${sp[k] ?? ''}" style="width:90px">
     </div>`).join('')}
@@ -728,6 +778,18 @@ async function borrarDestino(d) {
     S.boot = await api('bootstrap'); toast('Destino eliminado'); renderConfig()
   } catch (e) { toast('Error: ' + e.message, true) }
 }
+async function guardarFactor() {
+  const v = parseFloat($('cfg-factor').value)
+  if (!isFinite(v) || v <= 0) return
+  try { await api('set_param', { param: 'factor_cdn_usmill', valor: v }); S.boot = await api('bootstrap'); toast('Factor = ' + v); renderTodo() }
+  catch (e) { toast('Error: ' + e.message, true) }
+}
+async function guardarFx() {
+  const v = parseFloat($('cfg-fx').value)
+  if (!isFinite(v) || v <= 0) return
+  try { await api('set_param', { param: 'fx_usdcad', valor: v }); S.boot = await api('bootstrap'); toast('FX mercado = ' + v); renderTodo() }
+  catch (e) { toast('Error: ' + e.message, true) }
+}
 async function guardarDescuento() {
   const v = parseFloat($('cfg-desc').value)
   if (!isFinite(v)) return
@@ -750,8 +812,8 @@ function renderCargar() {
   $('v-cargar').innerHTML = `
   <div class="grid2">
   <div class="card">
-    <h2>Excel semanal (Tolko U.S. Sales List)</h2>
-    <p class="nota">Baja el .xlsx desde el link del correo semanal y súbelo aquí. La fecha se detecta del nombre del archivo.</p>
+    <h2>Excel semanal (lista US y lista CDN)</h2>
+    <p class="nota">Baja el .xlsx del correo y súbelo aquí — sirve tanto la <b>U.S. Sales List</b> (lunes) como la <b>Canadian Sales List</b> (martes): se detecta por el nombre del archivo (_US / _CDN), igual que la fecha. Sube ambas: la CDN trae el precio real en aserradero de todas las pestañas.</p>
     <div class="filtros">
       <input type="file" id="file-xlsx" accept=".xlsx,.xls">
       <label>Fecha <input type="date" id="fecha-xlsx" value="${hoy}"></label>
@@ -789,10 +851,11 @@ async function cargarExcel() {
     const meses = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 }
     const m = f.name.match(/([A-Za-z]+)_(\d{1,2})(?:st|nd|rd|th)?_(\d{4})/)
     if (m && meses[m[1].toLowerCase()]) fecha = `${m[3]}-${String(meses[m[1].toLowerCase()]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`
+    const esCDN = /_CDN/i.test(f.name)
     const { items, warnings } = TolkoParser.parseWorkbook(sheets, { fecha })
     $('prev-xlsx').innerHTML = resumenParseo(items, warnings)
     if (!items.length) return toast('No se encontraron items — ¿cambió el formato?', true)
-    const r = await api('ingest', { fecha, fuente: 'xlsx_semanal', titulo: `Tolko U.S. Sales List — ${fecha}`, archivo: f.name, items })
+    const r = await api('ingest', { fecha, fuente: esCDN ? 'xlsx_cdn' : 'xlsx_semanal', titulo: `Tolko ${esCDN ? 'Canadian' : 'U.S.'} Sales List — ${fecha}`, archivo: f.name, items })
     toast(`Guardado: ${r.n} items (${fecha})`)
     await cargarBoot()
   } catch (e) { toast('Error: ' + e.message, true) }
