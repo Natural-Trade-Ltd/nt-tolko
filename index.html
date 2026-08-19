@@ -652,11 +652,17 @@ function filaMatriz(it) {
   for (const d of destinos()) { const cd = costo(it, d); if (cd) costosDest[d] = cd.v }
   const principal = costosDest[S.destinoSel] != null ? S.destinoSel : (Object.keys(costosDest)[0] || null)
   const fronteraTxt = Object.entries(costosDest).map(([d, v]) => `${d} $${v}`).join(' · ')
+  const molino = 'Tolko ' + (it.mill || '') + (millNombre(it.mill) ? ` (${millNombre(it.mill)})` : '')
+  // tally en el formato que parsea el resto del sistema: "42/8' 24/10'" (solo largos en pies)
+  const tallyNum = it.tally && Object.keys(it.tally).length && Object.keys(it.tally).every(k => /^\d+$/.test(k))
+  const tallyTexto = tallyNum ? Object.keys(it.tally).sort((a, b) => a - b).map(k => `${it.tally[k]}/${k}'`).join(' ') : null
   return {
-    proveedor_raw: 'Tolko · ' + (it.mill || ''),
-    producto_raw: [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ') + (tallyTxt(it) ? ' — ' + tallyTxt(it) : ''),
+    proveedor_raw: molino,
+    producto_raw: 'Tolko ' + [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ') + (tallyTxt(it) ? ' — ' + tallyTxt(it) : ''),
     dimension: it.size, grade: it.grade, especie: it.species,
     cantidad: it.mbf_est, unidad_cantidad: it.mbf_est != null ? 'MBF' : null,
+    pies_tabla: it.mbf_est != null ? Math.round(it.mbf_est * 1000) : null,
+    confianza: 1,
     precio_cotizado: u ? Math.round(u.v * 100) / 100 : null,
     unidad_cotizada: 'MBF', moneda_cotizada: 'USD', incoterm: 'FOB',
     punto_origen: millNombre(it.mill),
@@ -674,11 +680,30 @@ function filaMatriz(it) {
     parseada_por_ia: false, canal_origen: 'portal-tolko', status: 'vigente',
     capturado_en: new Date().toISOString(), vigente_actual: true, estado_disponibilidad: 'disponible',
     mensaje_uid: 'portal-tolko:' + it.id,
-    notas: `Tolko ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · Frontera: ${fronteraTxt || '—'}`,
+    notas: `${molino} · ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · Frontera: ${fronteraTxt || '—'}`,
+    // raw con el MISMO contrato que emite el parser IA del detector (+ trazabilidad Tolko extra)
     raw: {
-      tolko_item_id: it.id, lista_id: it.lista_id, pestana: it.pestana, tally: it.tally, status: it.status,
-      precio_usmill: it.precio_usmill, precio_cdnmill: it.precio_cdnmill, precio_chi: it.precio_chi,
-      via_usd: u ? u.viaUsd : null, via_cad: u ? u.viaCad : null, destinos: costosDest, destino_principal: principal,
+      grade: it.grade, grade_original: it.grade,
+      grupo: 'Portal Tolko',
+      tally: tallyTexto,
+      fuente: 'portal-tolko',
+      molino,
+      especie: it.species,
+      furgones: it.es_carro ? 1 : null,
+      confianza: 'alta',
+      remitente: 'Portal Tolko',
+      timestamp: new Date().toISOString(),
+      carro_grupo: null, carro_mixto: false,
+      mensaje_uid: 'portal-tolko:' + it.id,
+      uso_contexto: false, contexto_usado: null,
+      mpt_declarado: it.mbf_est ?? null,
+      precios_frontera: costosDest,
+      remitente_telefono: null,
+      tolko_item_id: it.id, lista_id: it.lista_id, pestana: it.pestana, status_tolko: it.status,
+      tally_json: it.tally,
+      via: u ? u.src : null, via_usd: u ? u.viaUsd : null, via_cad: u ? u.viaCad : null,
+      fob_neto_usd: u ? Math.round(u.v * 100) / 100 : null,
+      fx_usdcad: fxMercado(), factor_cdn: factorCdn(), descuento: descuento(),
     },
   }
 }
