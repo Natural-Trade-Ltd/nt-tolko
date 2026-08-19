@@ -560,7 +560,7 @@ function filaExp(it) {
   const valor = cd && it.mbf_est ? cd.v * it.mbf_est : null
   return `<tr class="${S.sel.has(it.id) ? 'sel-row' : ''}">
     <td><input type="checkbox" ${S.sel.has(it.id) ? 'checked' : ''} onchange="togSel('${it.id}')"></td>
-    <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b><br><span class="nota">${esc(it.pestana)}${it.fuente === 'email_lowgrade' ? ' · correo' : ''}</span></td>
+    <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b><br><span class="nota">${esc(it.pestana)}${it.fuente === 'email_lowgrade' ? ' · correo' : ''}${it.enviado_matriz ? ' · <b style="color:var(--ok)">matriz</b>' : ''}</span></td>
     <td>${esc(it.mill || '')}<br><span class="nota">${esc(it.grupo_flete || 'sin flete')}</span></td>
     <td style="white-space:normal;max-width:190px">${esc(tallyTxt(it))}</td>
     <td>${it.es_carro ? '<span class="chip ok">CARRO</span>' : '<span class="chip alerta">armar</span>'}${it.mbf_est ? `<br><span class="nota num">${it.mbf_est} MBF</span>` : ''}</td>
@@ -616,6 +616,7 @@ function renderSeleccion() {
       </label>
       <label>Ajuste $/MPT <input type="number" value="${S.ajuste}" style="width:90px" onchange="S.ajuste=this.value;renderSeleccion()"></label>
       <button class="mini" onclick="copiarOferta()">Copiar lista</button>
+      <button class="mini" style="background:var(--acc2)" onclick="inyectarMatriz()">Inyectar a matriz de ofertas</button>
       <button class="sec mini" onclick="S.sel.clear();renderSeleccion();renderSelBadge()">Limpiar</button>
     </div>
     <pre class="oferta" id="oferta-pre">${esc(items.length ? textoOferta() : 'Selecciona items en el Explorador o el Resumen…')}</pre>
@@ -623,7 +624,7 @@ function renderSeleccion() {
   <div class="card">
     <h2>Detalle de la selección (${items.length})</h2>
     <div class="tabla-wrap"><table>
-      <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Status</th><th class="r">US Mill</th><th class="r">${esc(S.destinoSel)}</th><th class="r">MBF</th><th class="r">$ Total</th></tr>
+      <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Status</th><th class="r">US Mill</th><th class="r">${esc(S.destinoSel)}</th><th class="r">MBF</th><th class="r">$ Total</th><th>Matriz</th></tr>
       ${items.map(it => {
         const c = costo(it, S.destinoSel), u = usmillEff(it)
         return `<tr>
@@ -635,11 +636,72 @@ function renderSeleccion() {
           ${costoTxt(c)}
           <td class="r num">${it.mbf_est ?? '—'}</td>
           <td class="r num">${c && it.mbf_est ? f$((c.v + (+S.ajuste || 0)) * it.mbf_est) : '—'}</td>
+          <td>${it.enviado_matriz ? `<span class="chip ok" style="cursor:pointer" title="Enviada ${esc(String(it.enviado_matriz).slice(0, 16).replace('T', ' '))} → ${esc(it.matriz_destino || '')}. Clic para retirarla de la matriz." onclick="quitarMatriz('${it.id}')">EN MATRIZ ✕</span>` : '<span class="nota">—</span>'}</td>
         </tr>`
-      }).join('') || '<tr><td colspan="9" class="nota">Vacía.</td></tr>'}
+      }).join('') || '<tr><td colspan="10" class="nota">Vacía.</td></tr>'}
     </table></div>
     <p class="nota num">Valor total selección: <b>${f$([...S.sel.values()].reduce((a, it) => { const c = costo(it, S.destinoSel); return a + (c && it.mbf_est ? (c.v + (+S.ajuste || 0)) * it.mbf_est : 0) }, 0))}</b> · MBF: <b>${Math.round([...S.sel.values()].reduce((a, it) => a + (it.mbf_est || 0), 0))}</b></p>
   </div>`
+}
+/* ---------- Inyección a la MATRIZ DE OFERTAS (ofertas_proveedor, proyecto Comercialización) ---------- */
+const millNombre = m => (TolkoParser.MILL_NOMBRES || {})[m] || m || ''
+function filaMatriz(it) {
+  const u = netoMillUsd(it)
+  const c = costo(it, S.destinoSel)
+  return {
+    proveedor_raw: 'Tolko · ' + (it.mill || ''),
+    producto_raw: [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ') + (tallyTxt(it) ? ' — ' + tallyTxt(it) : ''),
+    dimension: it.size, grade: it.grade, especie: it.species,
+    cantidad: it.mbf_est, unidad_cantidad: it.mbf_est != null ? 'MBF' : null,
+    precio_cotizado: u ? Math.round(u.v * 100) / 100 : null,
+    unidad_cotizada: 'MBF', moneda_cotizada: 'USD', incoterm: 'FOB',
+    punto_origen: millNombre(it.mill),
+    costo_frontera_usd: c ? c.v : null,
+    ciudad_frontera: c ? S.destinoSel : null,
+    mpt_carro: it.es_carro ? it.mbf_est : null,
+    tipo_carga: 'furgon', es_carga_completa: it.es_carro,
+    unidad_normalizada: 'USD/MBF', normalizado_metodo: 'computado_con_adders', estado_normalizacion: 'normalizada',
+    parseada_por_ia: false, canal_origen: 'portal-tolko', status: 'vigente',
+    capturado_en: new Date().toISOString(), vigente_actual: true, estado_disponibilidad: 'disponible',
+    mensaje_uid: 'portal-tolko:' + it.id,
+    notas: `Tolko ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · FX ${fxMercado()} · factor ${factorCdn()}`,
+    raw: {
+      tolko_item_id: it.id, lista_id: it.lista_id, pestana: it.pestana, tally: it.tally, status: it.status,
+      precio_usmill: it.precio_usmill, precio_cdnmill: it.precio_cdnmill, precio_chi: it.precio_chi,
+      via_usd: u ? u.viaUsd : null, via_cad: u ? u.viaCad : null, destino: S.destinoSel,
+    },
+  }
+}
+async function inyectarMatriz() {
+  const items = [...S.sel.values()]
+  if (!items.length) return toast('Selecciona items primero', true)
+  const conPrecio = items.filter(it => netoMillUsd(it))
+  const sinPrecio = items.length - conPrecio.length
+  const yaEnviados = conPrecio.filter(it => it.enviado_matriz).length
+  if (!conPrecio.length) return toast('Ninguno de los items tiene precio calculable', true)
+  const msj = `Se inyectarán ${conPrecio.length} ofertas de Tolko a la MATRIZ DE OFERTAS:\n` +
+    `· FOB neto (tu trato aplicado) + costo frontera ${S.destinoSel}\n` +
+    (yaEnviados ? `· ${yaEnviados} ya estaban en la matriz — se reemplazan con el precio de hoy\n` : '') +
+    (sinPrecio ? `· ${sinPrecio} sin precio se omiten\n` : '') +
+    `\n¿Continuar?`
+  if (!confirm(msj)) return
+  try {
+    const r = await api('enviar_matriz', { filas: conPrecio.map(filaMatriz), item_ids: conPrecio.map(i => i.id), destino: S.destinoSel })
+    const ts = new Date().toISOString()
+    for (const it of conPrecio) { it.enviado_matriz = ts; it.matriz_destino = S.destinoSel }
+    toast(`${r.insertadas} ofertas inyectadas a la matriz ✓`)
+    renderSeleccion()
+  } catch (e) { toast('Error al inyectar: ' + e.message, true) }
+}
+async function quitarMatriz(id) {
+  if (!confirm('¿Retirar esta oferta de la matriz?')) return
+  try {
+    await api('quitar_matriz', { item_ids: [id] })
+    const it = S.items.find(i => i.id === id)
+    if (it) { it.enviado_matriz = null; it.matriz_destino = null }
+    toast('Retirada de la matriz')
+    renderSeleccion()
+  } catch (e) { toast('Error: ' + e.message, true) }
 }
 async function copiarOferta() {
   try { await navigator.clipboard.writeText(textoOferta()); toast('Lista copiada — pégala en WhatsApp') }

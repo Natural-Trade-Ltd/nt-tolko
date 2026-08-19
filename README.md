@@ -66,9 +66,20 @@ node ingest/ingest-local.mjs lowgrade ingest/lowgrade-2026-08-18.json
 2. Escribir un `parseXxx()` nuevo por formato (PDF → extraer con visión/Claude primero a JSON).
 3. El costeo, portal, históricos y selección WhatsApp son genéricos (fletes/params por proveedor).
 
+## Integración con la Matriz de Ofertas (18-ago-2026)
+
+Botón **«Inyectar a matriz de ofertas»** en la vista Selección: inserta las ofertas seleccionadas en
+`ofertas_proveedor` (proyecto NT-GF Comercializacion `nlbydvntjbevbhghtdcx`) vía la acción
+`enviar_matriz` de `tolko-api`, reusando los secrets `OFERTAS_URL`/`OFERTAS_SERVICE_KEY` que ya
+tenía el proyecto (los usa `publicar-ofertas`). Mapeo: FOB neto USD (trato aplicado, según modo) →
+`precio_cotizado`; costo a frontera → `costo_frontera_usd` + `ciudad_frontera`; carro/lote →
+`es_carga_completa`/`mpt_carro`; `canal_origen='portal-tolko'` y `mensaje_uid='portal-tolko:{item_id}'`
+(re-enviar REEMPLAZA, no duplica). El chip «EN MATRIZ» marca el item (clic = retirar,
+acción `quitar_matriz`). OJO: una vez en la matriz, si la dim|grade está en la canasta de un cliente
+piloto y el trader la tiene en `ofertar`, `publicar-ofertas` puede llevarla a la app — ese es el flujo.
+
 ## Pendientes
 
 - [ ] Ingesta 100% automática del correo (tarea programada que lee Gmail, baja el xlsx del link Mailchimp y postea a `tolko-api` — requiere OK de Jorge).
 - [ ] Confirmar: ¿el 25% aplica también fuera de low grade? ¿Tolko publica US MILL de studs/dimension al pedirlo?
 - [ ] Flete grupo Kelowna (KLT) y mills sueltos (COL) — hoy sin costo.
-- [ ] Botón «mandar selección a la matriz de ofertas».
