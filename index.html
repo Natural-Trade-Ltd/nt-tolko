@@ -647,7 +647,11 @@ function renderSeleccion() {
 const millNombre = m => (TolkoParser.MILL_NOMBRES || {})[m] || m || ''
 function filaMatriz(it) {
   const u = netoMillUsd(it)
-  const c = costo(it, S.destinoSel)
+  // costo a TODOS los destinos configurados (El Paso, Calexico y los que se agreguen)
+  const costosDest = {}
+  for (const d of destinos()) { const cd = costo(it, d); if (cd) costosDest[d] = cd.v }
+  const principal = costosDest[S.destinoSel] != null ? S.destinoSel : (Object.keys(costosDest)[0] || null)
+  const fronteraTxt = Object.entries(costosDest).map(([d, v]) => `${d} $${v}`).join(' · ')
   return {
     proveedor_raw: 'Tolko · ' + (it.mill || ''),
     producto_raw: [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ') + (tallyTxt(it) ? ' — ' + tallyTxt(it) : ''),
@@ -656,19 +660,25 @@ function filaMatriz(it) {
     precio_cotizado: u ? Math.round(u.v * 100) / 100 : null,
     unidad_cotizada: 'MBF', moneda_cotizada: 'USD', incoterm: 'FOB',
     punto_origen: millNombre(it.mill),
-    costo_frontera_usd: c ? c.v : null,
-    ciudad_frontera: c ? S.destinoSel : null,
+    costo_frontera_usd: principal ? costosDest[principal] : null,
+    ciudad_frontera: principal,
+    snapshot_costos: {
+      destinos: costosDest,
+      fob_neto_usd: u ? Math.round(u.v * 100) / 100 : null,
+      via: u ? u.src : null, fx_usdcad: fxMercado(), factor_cdn: factorCdn(), descuento: descuento(),
+      fletes: Object.fromEntries(destinos().map(d => [d, flete(d, it.grupo_flete)]).filter(x => x[1] != null)),
+    },
     mpt_carro: it.es_carro ? it.mbf_est : null,
     tipo_carga: 'furgon', es_carga_completa: it.es_carro,
     unidad_normalizada: 'USD/MBF', normalizado_metodo: 'computado_con_adders', estado_normalizacion: 'normalizada',
     parseada_por_ia: false, canal_origen: 'portal-tolko', status: 'vigente',
     capturado_en: new Date().toISOString(), vigente_actual: true, estado_disponibilidad: 'disponible',
     mensaje_uid: 'portal-tolko:' + it.id,
-    notas: `Tolko ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · FX ${fxMercado()} · factor ${factorCdn()}`,
+    notas: `Tolko ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · Frontera: ${fronteraTxt || '—'}`,
     raw: {
       tolko_item_id: it.id, lista_id: it.lista_id, pestana: it.pestana, tally: it.tally, status: it.status,
       precio_usmill: it.precio_usmill, precio_cdnmill: it.precio_cdnmill, precio_chi: it.precio_chi,
-      via_usd: u ? u.viaUsd : null, via_cad: u ? u.viaCad : null, destino: S.destinoSel,
+      via_usd: u ? u.viaUsd : null, via_cad: u ? u.viaCad : null, destinos: costosDest, destino_principal: principal,
     },
   }
 }
@@ -679,16 +689,19 @@ async function inyectarMatriz() {
   const sinPrecio = items.length - conPrecio.length
   const yaEnviados = conPrecio.filter(it => it.enviado_matriz).length
   if (!conPrecio.length) return toast('Ninguno de los items tiene precio calculable', true)
+  const ds = destinos()
   const msj = `Se inyectarán ${conPrecio.length} ofertas de Tolko a la MATRIZ DE OFERTAS:\n` +
-    `· FOB neto (tu trato aplicado) + costo frontera ${S.destinoSel}\n` +
+    `· FOB neto (tu trato aplicado)\n` +
+    `· Costo a frontera en TODOS los destinos: ${ds.join(' + ')} (misma inyección; principal: ${S.destinoSel})\n` +
     (yaEnviados ? `· ${yaEnviados} ya estaban en la matriz — se reemplazan con el precio de hoy\n` : '') +
     (sinPrecio ? `· ${sinPrecio} sin precio se omiten\n` : '') +
     `\n¿Continuar?`
   if (!confirm(msj)) return
   try {
-    const r = await api('enviar_matriz', { filas: conPrecio.map(filaMatriz), item_ids: conPrecio.map(i => i.id), destino: S.destinoSel })
+    const etiquetaDest = ds.join(' · ')
+    const r = await api('enviar_matriz', { filas: conPrecio.map(filaMatriz), item_ids: conPrecio.map(i => i.id), destino: etiquetaDest })
     const ts = new Date().toISOString()
-    for (const it of conPrecio) { it.enviado_matriz = ts; it.matriz_destino = S.destinoSel }
+    for (const it of conPrecio) { it.enviado_matriz = ts; it.matriz_destino = etiquetaDest }
     toast(`${r.insertadas} ofertas inyectadas a la matriz ✓`)
     renderSeleccion()
   } catch (e) { toast('Error al inyectar: ' + e.message, true) }
