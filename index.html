@@ -179,7 +179,7 @@ const API = 'https://borouviqngtdzfvlmlur.supabase.co/functions/v1/tolko-api'
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 const S = {
   clave: localStorage.tolkoClave || '', boot: null, fecha: null, items: [], showDups: false,
-  filtros: { pestana:'', size:'', species:'', mill:'', prompt:false, carros:false, q:'' },
+  filtros: { pestana:'', size:'', species:'', mill:'', prompt:false, carros:false, sinShorts:false, q:'' },
   sort: { col:'c1', dir:1 }, sel: new Map(), destinoSel: localStorage.tolkoDestino || 'El Paso',
   ajuste: 0, vista: 'resumen', serieModo: 'usmill',
 }
@@ -226,6 +226,31 @@ function tallyTxt(it) {
   const numeric = ks.every(k => /^\d+$/.test(k))
   if (numeric) return ks.sort((a, b) => a - b).map(k => `${it.tally[k]}/${k}'`).join(' ')
   return ks.map(k => `${it.tally[k]} pqt ${k}`).join(' · ')
+}
+/* ---------- largos: pies vs trim (studs/shorts) ----------
+   Las pestañas de tally (SPF DIMENSION, FIR, #3 & ECON, MSR) traen el largo en pies
+   como llave del tally (8, 10, 12…). Las de studs/shorts traen el TRIM ('92-5/8"',
+   '84"', "6'"): mismo 2x4 #2 pero producto distinto y mucho más barato por MPT.
+   Sin el largo a la vista, un short de 84" se cotiza como un 2x4 #2 normal. */
+function trimPies(k) {
+  if (/^\d+$/.test(k)) return +k
+  const mf = String(k).match(/^\s*(\d{1,2})\s*'/)
+  if (mf) return +mf[1]
+  const m = String(k).match(/(\d{2,3})(?:-(\d+)\/(\d+))?/)
+  if (!m) return null
+  return (parseInt(m[1]) + (m[2] ? parseInt(m[2]) / parseInt(m[3]) : 0)) / 12
+}
+const llavesTally = it => Object.keys(it.tally || {})
+const tallyEsTrim = it => llavesTally(it).some(k => !/^\d+$/.test(k))
+const largosPies = it => llavesTally(it).map(trimPies).filter(v => v != null)
+/* Short = precorte por debajo de 7.5' (84", 72", 60", 6'). El stud de 8' (92-5/8") NO lo es. */
+function esShort(it) { const l = largosPies(it); return l.length > 0 && Math.max(...l) < 7.5 }
+const largoTxt = it => (tallyEsTrim(it) ? llavesTally(it).join('/') : '')
+/* Nombre del producto para pantalla, WhatsApp y matriz: siempre con el largo del trim. */
+function prodTxt(it) {
+  const base = [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ')
+  const lg = largoTxt(it)
+  return lg ? `${base} ${lg}` : base
 }
 function gradeTxt(g) {
   if (g === 'A-GRADE') return 'A-Grade'
@@ -340,11 +365,16 @@ const kOf = it => [it.pestana, it.mill, it.size, it.grade, it.species, it.status
 function unirCdn() {
   const cdn = S.items.filter(i => i.fuente === 'xlsx_cdn')
   if (!cdn.length) return
-  const idx = new Map(cdn.map(i => [kOf(i), i]))
+  // Un renglón puede repetirse en el archivo (dos carros idénticos): hay que guardarlos TODOS,
+  // si no los repetidos del CDN se quedan sin marcar y salen como filas extra en el explorador.
+  const idx = new Map()
+  for (const i of cdn) { const k = kOf(i); if (!idx.has(k)) idx.set(k, []); idx.get(k).push(i) }
   for (const it of S.items) {
     if (it.fuente !== 'xlsx_semanal') continue
-    const m = idx.get(kOf(it))
-    if (m) { if (it.precio_cdnmill == null) it.precio_cdnmill = m.precio_cdnmill; m._dup = true }
+    const ms = idx.get(kOf(it))
+    if (!ms || !ms.length) continue
+    if (it.precio_cdnmill == null) it.precio_cdnmill = ms[0].precio_cdnmill
+    for (const m of ms) m._dup = true
   }
 }
 function factorObservado() {
@@ -357,7 +387,7 @@ function factorObservado() {
 async function recalibrarFactor() {
   const obs = factorObservado()
   if (!obs) return
-  if (Math.abs(obs - factorCdn()) / factorCdn() > 0.002) {
+  if (Math.abs(obs - factorCdn()) / factorCdn() > 0.0002) { // Tolko mueve su tasa interna cada semana (~0.2%)
     try {
       const v = Math.round(obs * 1e6) / 1e6
       await api('set_param', { param: 'factor_cdn_usmill', valor: v })
@@ -507,6 +537,7 @@ function renderExplorador() {
       </select>
       <label><input type="checkbox" ${F.prompt ? 'checked' : ''} onchange="S.filtros.prompt=this.checked;renderExplorador()"> Solo prompt</label>
       <label><input type="checkbox" ${F.carros ? 'checked' : ''} onchange="S.filtros.carros=this.checked;renderExplorador()"> Solo carros</label>
+      <label title="Esconde los precortes de menos de 8 pies (84&quot;, 72&quot;, 60&quot;), que se ven baratos por MPT pero no son producto comparable"><input type="checkbox" ${F.sinShorts ? 'checked' : ''} onchange="S.filtros.sinShorts=this.checked;renderExplorador()"> Sin shorts</label>
       <input type="text" placeholder="Buscar…" value="${esc(F.q)}" oninput="S.filtros.q=this.value;renderExplorador()" style="min-width:140px">
       <span class="nota num">${arr.length} filas</span>
     </div>
@@ -538,6 +569,7 @@ function filtrar(arr) {
     (!F.mill || it.mill === F.mill) &&
     (!F.prompt || it.es_prompt) &&
     (!F.carros || it.es_carro) &&
+    (!F.sinShorts || !esShort(it)) &&
     (!F.q || (it.producto + ' ' + it.pestana + ' ' + it.grade + ' ' + it.seccion).toLowerCase().includes(F.q.toLowerCase()))
   )
 }
@@ -560,7 +592,7 @@ function filaExp(it) {
   const valor = cd && it.mbf_est ? cd.v * it.mbf_est : null
   return `<tr class="${S.sel.has(it.id) ? 'sel-row' : ''}">
     <td><input type="checkbox" ${S.sel.has(it.id) ? 'checked' : ''} onchange="togSel('${it.id}')"></td>
-    <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b><br><span class="nota">${esc(it.pestana)}${it.fuente === 'email_lowgrade' ? ' · correo' : ''}${it.enviado_matriz ? ' · <b style="color:var(--ok)">matriz</b>' : ''}</span></td>
+    <td><b>${esc(prodTxt(it))}</b>${esShort(it) ? ' <span class="chip riesgo" title="Precorte por debajo de 8 pies: NO es comparable con un largo normal de la misma medida y grado">SHORTS</span>' : ''}<br><span class="nota">${esc(it.pestana)}${it.fuente === 'email_lowgrade' ? ' · correo' : ''}${it.enviado_matriz ? ' · <b style="color:var(--ok)">matriz</b>' : ''}</span></td>
     <td>${esc(it.mill || '')}<br><span class="nota">${esc(it.grupo_flete || 'sin flete')}</span></td>
     <td style="white-space:normal;max-width:190px">${esc(tallyTxt(it))}</td>
     <td>${it.es_carro ? '<span class="chip ok">CARRO</span>' : '<span class="chip alerta">armar</span>'}${it.mbf_est ? `<br><span class="nota num">${it.mbf_est} MBF</span>` : ''}</td>
@@ -592,7 +624,7 @@ function lineaOferta(it, i, destino, ajuste) {
   const c = costo(it, destino)
   const precio = c ? c.v + (ajuste || 0) : null
   const tag = it.es_carro ? `Carro#${i}` : `Lote#${i}${it.mbf_est ? ` (${it.mbf_est} MBF)` : ''}`
-  const prod = [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ')
+  const prod = prodTxt(it) + (esShort(it) ? ' SHORTS' : '')
   return `${tag}: ${prod} ${tallyTxt(it)} (${statusTxt(it.status)}) ${precio ? '$' + precio + '/MPT ' + destino : 'costo pendiente'}${c && c.est ? ' *' : ''}`
 }
 function textoOferta() {
@@ -601,6 +633,7 @@ function textoOferta() {
   const lineas = items.map((it, i) => lineaOferta(it, i + 1, d, aj))
   let out = lineas.join('\n')
   if (items.some(it => { const c = costo(it, d); return c && c.est })) out += '\n* costo estimado (Tolko no publica US MILL en esa pestaña)'
+  if (items.some(esShort)) out += '\nSHORTS = precorte menor a 8 pies (84"/72"/60"): precio por MPT más bajo, no comparable con largo normal.'
   return out
 }
 function renderSeleccion() {
@@ -629,7 +662,7 @@ function renderSeleccion() {
         const c = costo(it, S.destinoSel), u = usmillEff(it)
         return `<tr>
           <td><button class="sec mini" onclick="togSel('${it.id}')">✕</button></td>
-          <td><b>${esc(it.species || '')} ${esc(it.size || '')} ${esc(gradeTxt(it.grade))}</b></td>
+          <td><b>${esc(prodTxt(it))}</b>${esShort(it) ? ' <span class="chip riesgo">SHORTS</span>' : ''}</td>
           <td>${esc(it.mill || '')}</td><td style="white-space:normal">${esc(tallyTxt(it))}</td>
           <td>${fmtStatus(it.status)}</td>
           <td class="r num">${u ? (u.est ? '≈' : '') + Math.round(u.v) : '—'}</td>
@@ -658,7 +691,7 @@ function filaMatriz(it) {
   const tallyTexto = tallyNum ? Object.keys(it.tally).sort((a, b) => a - b).map(k => `${it.tally[k]}/${k}'`).join(' ') : null
   return {
     proveedor_raw: molino,
-    producto_raw: 'Tolko ' + [it.species, it.size, gradeTxt(it.grade)].filter(Boolean).join(' ') + (tallyTxt(it) ? ' — ' + tallyTxt(it) : ''),
+    producto_raw: 'Tolko ' + prodTxt(it) + (esShort(it) ? ' SHORTS' : '') + (tallyTxt(it) ? ' — ' + tallyTxt(it) : ''),
     dimension: it.size, grade: it.grade, especie: it.species,
     cantidad: it.mbf_est, unidad_cantidad: it.mbf_est != null ? 'MBF' : null,
     pies_tabla: it.mbf_est != null ? Math.round(it.mbf_est * 1000) : null,
@@ -680,7 +713,7 @@ function filaMatriz(it) {
     parseada_por_ia: false, canal_origen: 'portal-tolko', status: 'vigente',
     capturado_en: new Date().toISOString(), vigente_actual: true, estado_disponibilidad: 'disponible',
     mensaje_uid: 'portal-tolko:' + it.id,
-    notas: `${molino} · ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · Frontera: ${fronteraTxt || '—'}`,
+    notas: `${esShort(it) ? 'SHORTS ' + largoTxt(it) + ' · ' : ''}${molino} · ${statusTxt(it.status)} · lista ${S.fecha} · vía ${u ? u.src : '?'}${u && u.est ? ' (estimado)' : ''} · Frontera: ${fronteraTxt || '—'}`,
     // raw con el MISMO contrato que emite el parser IA del detector (+ trazabilidad Tolko extra)
     raw: {
       grade: it.grade, grade_original: it.grade,
@@ -701,6 +734,7 @@ function filaMatriz(it) {
       remitente_telefono: null,
       tolko_item_id: it.id, lista_id: it.lista_id, pestana: it.pestana, status_tolko: it.status,
       tally_json: it.tally,
+      largo_trim: largoTxt(it) || null, es_short: esShort(it),
       via: u ? u.src : null, via_usd: u ? u.viaUsd : null, via_cad: u ? u.viaCad : null,
       fob_neto_usd: u ? Math.round(u.v * 100) / 100 : null,
       fx_usdcad: fxMercado(), factor_cdn: factorCdn(), descuento: descuento(),

@@ -78,8 +78,30 @@ tenía el proyecto (los usa `publicar-ofertas`). Mapeo: FOB neto USD (trato apli
 acción `quitar_matriz`). OJO: una vez en la matriz, si la dim|grade está en la canasta de un cliente
 piloto y el trader la tiene en `ofertar`, `publicar-ofertas` puede llevarla a la app — ese es el flujo.
 
+## Verificación del costeo (25-ago-2026)
+
+Contrastando la lista CDN contra el correo Low Grade del 18-ago (única fuente con **US MILL
+publicado** renglón a renglón), la derivación `US MILL = CDN MILL ÷ factor` da el número
+**exacto**: 450.0, 299.0, 294.0, 289.0, 284.0 — idénticos a los del correo. La aritmética
+(descuento + flete + margen) está bien; lo que hay que cuidar es qué producto es cada renglón
+y si el trato aplica.
+
+- **CDN MILL = US MILL × constante** (1.13253 en la lista del 25-ago, 1.134409 en la del 18-ago),
+  exacta a 5 decimales en todos los renglones: es la tasa interna de Tolko, no un precio de
+  mercado canadiense. Por eso la lista CDN no aporta precio nuevo, solo un US MILL más limpio.
+- **La vía «CDN ÷ FX del día» nunca gana** mientras el descuento sea ≥ 18.2 %: con 25 % haría
+  falta un USDCAD de 1.5125 (hoy 1.38). El modo «el mejor de ambos» hoy siempre resuelve por la
+  vía USD. Es correcto, pero no es una palanca hasta que cambie el FX o el descuento.
+- **Shorts**: las pestañas de studs/shorts traen el largo en el *trim* (84", 72", 60", 6'), no en
+  pies. Un `2x4 #2` de 84" cuesta ~$90/MPT menos que uno de largo normal y salía en pantalla como
+  un `2x4 #2` cualquiera — por eso aparecían #2 más baratos que #3. Ahora el largo va en el nombre
+  del producto (pantalla, WhatsApp y matriz), con chip **SHORTS** y filtro «Sin shorts».
+
 ## Pendientes
 
 - [ ] Ingesta 100% automática del correo (tarea programada que lee Gmail, baja el xlsx del link Mailchimp y postea a `tolko-api` — requiere OK de Jorge).
-- [ ] Confirmar: ¿el 25% aplica también fuera de low grade? ¿Tolko publica US MILL de studs/dimension al pedirlo?
-- [ ] Flete grupo Kelowna (KLT) y mills sueltos (COL) — hoy sin costo.
+- [ ] **Confirmar el 25% fuera de low grade.** Hoy se aplica a TODA la lista. En Douglas Fir #2 eso
+      deja el costo en aserradero por debajo de la propia lista canadiense de Tolko convertida a
+      mercado (392 USD vs 429 USD) — poco creíble si el trato es solo de #3/ECON. Si no aplica,
+      toda la lista fuera de low grade sale ~25% barata.
+- [ ] Flete grupo Kelowna (KLT) y mills sueltos (LULU, COL) — hoy sin costo («costo pendiente»).

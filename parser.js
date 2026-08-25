@@ -77,9 +77,12 @@
     if (!m || !lenFt) return null
     return (parseInt(m[1]) * parseInt(m[2]) / 12) * lenFt
   }
-  // '92-5/8"' → 7.719 ft · '96"' → 8 ft · '104-5/8 (FL)' → 8.719 ft
+  // '92-5/8"' → 7.719 ft · '96"' → 8 ft · '104-5/8 (FL)' → 8.719 ft · "6'" / '6 FT' → 6 ft
   function trimFt(txt) {
-    const m = s(txt).match(/(\d{2,3})\s*(?:-\s*(\d+)\/(\d+))?/)
+    const t = s(txt)
+    const mf = t.match(/^\s*(\d{1,2})\s*(?:'|\bFT\b|\bFEET\b|\bPIES?\b)/i) // largo ya en pies
+    if (mf) return parseInt(mf[1])
+    const m = t.match(/(\d{2,3})\s*(?:-\s*(\d+)\/(\d+))?/)
     if (!m) return null
     let inches = parseInt(m[1])
     if (m[2]) inches += parseInt(m[2]) / parseInt(m[3])
