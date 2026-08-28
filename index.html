@@ -422,7 +422,24 @@ function renderResumen() {
     .sort((a, b) => (a.dlt - b.dlt) || (b.it.es_prompt - a.it.es_prompt))
     .slice(0, 12)
 
-  $('v-resumen').innerHTML = `
+  // Salud del costeo (28-ago, tras hallazgo en West Fraser): que el fallo del cruce US↔CDN
+  // no sea silencioso — sin lista CDN, el costo cae al estimado ≈ sin que se note.
+  const fuentesFecha = S.boot.listas.filter(l => l.fecha === S.fecha).map(l => l.fuente)
+  const hayUS = fuentesFecha.includes('xlsx_semanal')
+  const hayCDN = fuentesFecha.includes('xlsx_cdn')
+  const conEst = arr.filter(i => { const u = netoMillUsd(i); return u && u.est })
+  const pctEst = arr.length ? conEst.length / arr.length : 0
+  let salud = ''
+  if (hayUS && !hayCDN && conEst.length)
+    salud = `<div class="card" style="border-color:var(--riesgo)">
+      <b style="color:var(--riesgo)">Falta la lista CDN del ${fmtFecha(S.fecha)}.</b>
+      <span class="nota">${conEst.length} de ${arr.length} renglones (${Math.round(pctEst * 100)}%) están costeados con ≈ estimado (Chicago − spread) en lugar del precio real en aserradero. Sube la Canadian Sales List en Cargar antes de cotizar o inyectar a la matriz.</span></div>`
+  else if (pctEst > 0.10)
+    salud = `<div class="card" style="border-color:var(--alerta)">
+      <b style="color:var(--alerta)">El cruce US↔CDN está incompleto:</b>
+      <span class="nota">${conEst.length} de ${arr.length} renglones (${Math.round(pctEst * 100)}%) cayeron al estimado ≈. Causa típica: las listas US y CDN quedaron con fechas distintas — revisa en Históricos que ambas tengan la MISMA fecha de lista y recarga la que esté mal.</span></div>`
+
+  $('v-resumen').innerHTML = salud + `
   <div class="kpis">
     <div class="kpi"><div class="v num">${arr.length}</div><div class="l">Items en lista</div></div>
     <div class="kpi"><div class="v num">${prompt.length}</div><div class="l">Prompt</div></div>
@@ -715,9 +732,11 @@ async function inyectarMatriz() {
   const yaEnviados = conPrecio.filter(it => it.enviado_matriz).length
   if (!conPrecio.length) return toast('Ninguno de los items tiene precio calculable', true)
   const ds = destinos()
+  const estimados = conPrecio.filter(it => { const u = netoMillUsd(it); return u && u.est }).length
   const msj = `Se inyectarán ${conPrecio.length} ofertas de Tolko a la MATRIZ DE OFERTAS:\n` +
     `· FOB neto (tu trato aplicado)\n` +
     `· Costo a frontera en TODOS los destinos: ${ds.join(' + ')} (misma inyección; principal: ${S.destinoSel})\n` +
+    (estimados ? `· ¡OJO! ${estimados} van con precio ESTIMADO ≈ (falta la lista CDN de esta fecha)\n` : '') +
     (yaEnviados ? `· ${yaEnviados} ya estaban en la matriz — se reemplazan con el precio de hoy\n` : '') +
     (sinPrecio ? `· ${sinPrecio} sin precio se omiten\n` : '') +
     `\n¿Continuar?`
