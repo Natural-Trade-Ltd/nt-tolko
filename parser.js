@@ -162,16 +162,19 @@
     return mbf || null
   }
 
-  // Localiza columnas por encabezado en una fila
+  // Localiza columnas por encabezado en una fila.
+  // Para columnas de precio GANA LA PRIMERA coincidencia: el 1-sep-2026 FIR traía una
+  // columna fantasma extra cuyo encabezado también decía "US MILL" (vacía) y el parser
+  // se quedaba con la última, perdiendo los precios reales.
   function findCols(row) {
     const c = { lens: {} }
     row.forEach((v, i) => {
       const t = up(v)
       if (!t) return
       if (t === 'STATUS') c.status = i
-      else if (t.includes('US MILL') || t.includes('USMILL')) c.usmill = i
-      else if (t.includes('CDN')) c.cdnmill = i
-      else if (t.includes('CHI')) c.chi = i
+      else if (t.includes('US MILL') || t.includes('USMILL')) { if (c.usmill == null) c.usmill = i }
+      else if (t.includes('CDN')) { if (c.cdnmill == null) c.cdnmill = i }
+      else if (t.includes('CHI')) { if (c.chi == null) c.chi = i }
       else if (t.startsWith('SPECIES')) c.species = i
       else if (t === 'SIZE') c.size = i
       else if (t.startsWith('PCS')) c.pcs = i

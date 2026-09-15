@@ -154,6 +154,7 @@ pre.oferta{
   <button data-v="resumen" class="on" onclick="ir('resumen')">Resumen</button>
   <button data-v="explorador" onclick="ir('explorador')">Explorador</button>
   <button data-v="seleccion" onclick="ir('seleccion')">Selección <span id="sel-badge" class="chip info">0</span></button>
+  <button data-v="inversa" onclick="ir('inversa')">Inversa</button>
   <button data-v="historicos" onclick="ir('historicos')">Históricos</button>
   <button data-v="config" onclick="ir('config')">Configuración</button>
   <button data-v="cargar" onclick="ir('cargar')">Cargar lista</button>
@@ -163,6 +164,7 @@ pre.oferta{
   <section id="v-resumen"></section>
   <section id="v-explorador" class="oculto"></section>
   <section id="v-seleccion" class="oculto"></section>
+  <section id="v-inversa" class="oculto"></section>
   <section id="v-historicos" class="oculto"></section>
   <section id="v-config" class="oculto"></section>
   <section id="v-cargar" class="oculto"></section>
@@ -340,11 +342,17 @@ const kOf = it => [it.pestana, it.mill, it.size, it.grade, it.species, it.status
 function unirCdn() {
   const cdn = S.items.filter(i => i.fuente === 'xlsx_cdn')
   if (!cdn.length) return
-  const idx = new Map(cdn.map(i => [kOf(i), i]))
+  // agrupa por llave: puede haber DOS carros idénticos (misma llave) — hay que ocultar TODOS
+  // los gemelos CDN, no solo el último (fan-out visto en las listas del 25-ago y 9-sep)
+  const idx = new Map()
+  for (const c of cdn) { const k = kOf(c); if (!idx.has(k)) idx.set(k, []); idx.get(k).push(c) }
   for (const it of S.items) {
     if (it.fuente !== 'xlsx_semanal') continue
-    const m = idx.get(kOf(it))
-    if (m) { if (it.precio_cdnmill == null) it.precio_cdnmill = m.precio_cdnmill; m._dup = true }
+    const ms = idx.get(kOf(it))
+    if (ms && ms.length) {
+      if (it.precio_cdnmill == null) it.precio_cdnmill = ms[0].precio_cdnmill
+      for (const m of ms) m._dup = true
+    }
   }
 }
 function factorObservado() {
@@ -382,7 +390,7 @@ const fuenteLabel = f => f === 'email_lowgrade' ? 'Correo Low Grade' : f === 'xl
 function ir(v) {
   S.vista = v
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v))
-  for (const s of ['resumen', 'explorador', 'seleccion', 'historicos', 'config', 'cargar'])
+  for (const s of ['resumen', 'explorador', 'seleccion', 'inversa', 'historicos', 'config', 'cargar'])
     $('v-' + s).classList.toggle('oculto', s !== v)
   renderVista()
 }
@@ -391,6 +399,7 @@ function renderVista() {
   if (S.vista === 'resumen') renderResumen()
   if (S.vista === 'explorador') renderExplorador()
   if (S.vista === 'seleccion') renderSeleccion()
+  if (S.vista === 'inversa') renderInversa()
   if (S.vista === 'historicos') renderHistoricos()
   if (S.vista === 'config') renderConfig()
   if (S.vista === 'cargar') renderCargar()
@@ -767,6 +776,102 @@ async function copiarOferta() {
     getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand('copy')
     toast('Lista copiada')
   }
+}
+
+/* ---------- INGENIERÍA INVERSA ---------- */
+function renderInversa() {
+  const arr = itemsVisibles()
+  const opts = k => [...new Set(arr.map(i => i[k]).filter(Boolean))].sort()
+  const I = S.inv = S.inv || { size: '', grade: '', species: '', destino: '', target: '' }
+  if (!I.destino) I.destino = S.destinoSel
+  const target = parseFloat(I.target)
+  const hayTarget = isFinite(target) && target > 0
+
+  const conCosto = arr.map(it => ({ it, c: costo(it, I.destino) })).filter(x => x.c)
+  const exactos = conCosto
+    .filter(x => (!I.size || x.it.size === I.size) && (!I.grade || x.it.grade === I.grade) && (!I.species || x.it.species === I.species))
+    .map(x => ({ ...x, d: hayTarget ? x.c.v - target : null }))
+    .sort((a, b) => a.c.v - b.c.v)
+  const idsEx = new Set(exactos.map(x => x.it.id))
+  // cercanos: cumplen medida O grado (relajan lo demás), ordenados por cercanía al target
+  const cercanos = hayTarget && (I.size || I.grade) ? conCosto
+    .filter(x => !idsEx.has(x.it.id) && ((I.size && x.it.size === I.size) || (I.grade && x.it.grade === I.grade)))
+    .map(x => ({ ...x, d: x.c.v - target }))
+    .sort((a, b) => Math.abs(a.d) - Math.abs(b.d)).slice(0, 8) : []
+
+  const dChip = d => d == null ? '<td class="r">—</td>'
+    : d <= 0 ? `<td class="r"><span class="chip ok num">CUMPLE −$${Math.abs(d)}</span></td>`
+    : `<td class="r"><span class="chip riesgo num">+$${d}</span></td>`
+  const fila = x => `<tr class="${S.sel.has(x.it.id) ? 'sel-row' : ''}">
+    <td><input type="checkbox" ${S.sel.has(x.it.id) ? 'checked' : ''} onchange="togSel('${x.it.id}')"></td>
+    <td><b>${esc(x.it.species || '')} ${esc(x.it.size || '')} ${esc(gradeTxt(x.it.grade))}</b><br><span class="nota">${esc(x.it.pestana)}</span></td>
+    <td>${esc(x.it.mill || '')}</td>
+    <td style="white-space:normal;max-width:190px">${esc(tallyTxt(x.it))}</td>
+    <td>${x.it.es_carro ? '<span class="chip ok">CARRO</span>' : '<span class="chip alerta">armar</span>'}${x.it.mbf_est ? `<br><span class="nota num">${x.it.mbf_est} MBF</span>` : ''}</td>
+    <td>${fmtStatus(x.it.status)}</td>
+    ${costoTxt(x.c)}
+    ${dChip(x.d)}
+  </tr>`
+
+  // Qué pedirle a Tolko para llegar al target (por grupo de mills con flete a ese destino)
+  const gruposDest = [...new Set(fletes().filter(f => f.destino === I.destino).map(f => f.grupo_flete))]
+  const objetivo = hayTarget ? gruposDest.map(g => {
+    const f = flete(I.destino, g)
+    const neto = target - f
+    return { g, f, neto, usmill: neto / (1 - descuento()), cdnFx: neto * fxMercado() }
+  }).filter(o => o.neto > 0) : []
+
+  $('v-inversa').innerHTML = `
+  <div class="card">
+    <h2>Ingeniería inversa — ¿qué me llega al target?</h2>
+    <div class="filtros">
+      <select onchange="S.inv.size=this.value;renderInversa()">
+        <option value="">Medida (todas)</option>
+        ${opts('size').map(v => `<option ${I.size === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+      </select>
+      <select onchange="S.inv.grade=this.value;renderInversa()">
+        <option value="">Grado (todos)</option>
+        ${opts('grade').map(v => `<option ${I.grade === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+      </select>
+      <select onchange="S.inv.species=this.value;renderInversa()">
+        <option value="">Especie (todas)</option>
+        ${opts('species').map(v => `<option ${I.species === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+      </select>
+      <select onchange="S.inv.destino=this.value;renderInversa()">
+        ${destinos().map(v => `<option ${I.destino === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+      </select>
+      <label>Target $/MPT <input type="number" value="${esc(I.target)}" style="width:110px" placeholder="ej. 380"
+        oninput="S.inv.target=this.value" onchange="renderInversa()"></label>
+    </div>
+    ${hayTarget ? `<p class="nota num">Target: <b>$${target}</b>/MPT puesto en ${esc(I.destino)} · ${exactos.filter(x => x.d <= 0).length} de ${exactos.length} coincidencias CUMPLEN.</p>` : '<p class="nota">Pon un target $/MPT para ver Δ, alternativas cercanas y qué pedirle a Tolko.</p>'}
+    <div class="tabla-wrap" style="max-height:46vh;overflow-y:auto"><table>
+      <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Vol</th><th>Status</th><th class="r">${esc(I.destino)}</th><th class="r">Δ vs target</th></tr>
+      ${exactos.map(fila).join('') || '<tr><td colspan="8" class="nota">Nada en la lista actual con esos filtros.</td></tr>'}
+    </table></div>
+    <p class="nota">Palomea renglones para mandarlos a Selección (WhatsApp / matriz).</p>
+  </div>
+  ${cercanos.length ? `<div class="card">
+    <h2>Lo más cercano fuera del filtro</h2>
+    <p class="nota">Misma medida con otro grado, o mismo grado en otra medida — por si el target no sale con lo exacto.</p>
+    <div class="tabla-wrap"><table>
+      <tr><th></th><th>Producto</th><th>Mill</th><th>Tally</th><th>Vol</th><th>Status</th><th class="r">${esc(I.destino)}</th><th class="r">Δ vs target</th></tr>
+      ${cercanos.map(fila).join('')}
+    </table></div>
+  </div>` : ''}
+  ${objetivo.length ? `<div class="card">
+    <h2>Qué pedirle a Tolko para llegar a $${target} en ${esc(I.destino)}</h2>
+    <p class="nota">Neto máximo en aserradero = target − flete. De ahí, la lista que se lo pides al trader según la vía.</p>
+    <div class="tabla-wrap"><table>
+      <tr><th>Grupo de mills</th><th class="r">Flete</th><th class="r">Neto máx en mill</th><th class="r">Lista USD máx (con tu ${(descuento() * 100).toFixed(0)}%)</th><th class="r">Lista CDN máx (pagando al FX ${fxMercado()})</th></tr>
+      ${objetivo.map(o => `<tr>
+        <td>${esc(o.g)}<br><span class="nota">${millsDeGrupo(o.g)}</span></td>
+        <td class="r num">$${o.f}</td>
+        <td class="r num">$${Math.round(o.neto)}</td>
+        <td class="r precio">$${Math.floor(o.usmill)}</td>
+        <td class="r precio">C$${Math.floor(o.cdnFx)}</td>
+      </tr>`).join('')}
+    </table></div>
+  </div>` : ''}`
 }
 
 /* ---------- HISTÓRICOS ---------- */
