@@ -401,6 +401,9 @@
         species = speciesFrom(msz[3], 'SPF')
         grade = up(b) === 'AG' ? 'A-GRADE' : 'J-GRADE'
         statusCols = []
+        // pcs se RESETEA por sección: desde oct-2026 solo el primer encabezado trae "(294PCS)"
+        // y arrastrarlo inflaba el volumen de 2x6/2x8/2x10 (bug visto el 6-oct: 2x8 al doble)
+        pcs = null
         for (let ci = 2; ci <= 5; ci++) {
           const v = row[ci]
           const t = up(v)
@@ -441,7 +444,6 @@
           volumen_raw: `${q} pqt de ${lenFt}'`, raw: row,
         }))
       }
-      pcs = /J-GRADE/.test(grade || '') ? pcs : pcs // pcs por sección se mantiene
     }
     return { items, warnings }
   }
