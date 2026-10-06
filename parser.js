@@ -449,13 +449,27 @@
   /* ---------- Texto pegado del correo Low Grade (tab-separado) ------------ */
   function parseLowGradeText(text, opts) {
     opts = opts || {}
-    const lines = String(text || '').split(/\r?\n/)
+    const lines = String(text || '').replace(/ /g, ' ').split(/\r?\n/)
     const rows = []
     for (const ln of lines) {
       if (ln.includes('\t')) rows.push(ln.split('\t'))
       else if (s(ln)) rows.push([ln])
     }
-    return parseLowGradeSheet('LOW GRADE (correo)', rows, opts)
+    let res = parseLowGradeSheet('LOW GRADE (correo)', rows, opts)
+    if (!res.items.length && rows.length) {
+      // RESCATE (6-oct-2026): si la selección copiada no incluyó el renglón de encabezados,
+      // no hay mapa de columnas y salían 0 items. Se reintenta con el orden canónico del
+      // correo de Tolko: mill | Size | Species | Pcs/Pkg | Volume | 8..20 | Status | CHI | US | CDN
+    const canon = ['', 'Size', 'Species', 'Pcs/Pkg', 'Volume', '8', '10', '12', '14', '16', '18', '20', 'Status', 'CHICAGO', 'US MILL', 'CDN MILL']
+      res = parseLowGradeSheet('LOW GRADE (correo)', [canon].concat(rows), opts)
+      if (res.items.length) res.warnings.push('El pegado no traía encabezados: se usó el orden de columnas estándar del correo de Tolko — verifica la vista previa.')
+    }
+    return res
+  }
+
+  /* ---------- Grid (array de arrays) del correo, p.ej. extraído del HTML --- */
+  function parseLowGradeGrid(grid, opts) {
+    return parseLowGradeSheet('LOW GRADE (correo)', grid || [], opts || {})
   }
 
   /* ---------- Router principal -------------------------------------------- */
@@ -499,7 +513,7 @@
   }
 
   return {
-    parseWorkbook, parseLowGradeText, buildLowGradeItem,
+    parseWorkbook, parseLowGradeText, parseLowGradeGrid, buildLowGradeItem,
     GRUPOS, MILL_NOMBRES, STD_PCS, LENS, CAR_MBF_MIN,
     util: { iso, normStatus, bfPc, trimFt, cleanGrade, speciesFrom, mbfDeTally },
   }

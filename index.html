@@ -178,6 +178,7 @@ pre.oferta{
 <script>
 'use strict'
 const API = 'https://borouviqngtdzfvlmlur.supabase.co/functions/v1/tolko-api'
+const CORREO_API = 'https://nlbydvntjbevbhghtdcx.supabase.co/functions/v1/tolko-correo' // lee Gmail (jorge@) y regresa la tabla del correo
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 const S = {
   clave: localStorage.tolkoClave || '', boot: null, fecha: null, items: [], showDups: false,
@@ -1106,8 +1107,12 @@ function renderCargar() {
     <div id="prev-xlsx"></div>
   </div>
   <div class="card">
-    <h2>Correo Low Grade (pegar tabla)</h2>
-    <p class="nota">En Gmail selecciona la tabla del correo de Brittny (clic antes del primer renglón, arrastra hasta el final), cópiala (Ctrl+C) y pégala aquí. Trae US MILL y CDN MILL.</p>
+    <h2>Correo Low Grade (Brittny)</h2>
+    <div class="filtros">
+      <button id="btn-correo-lg" onclick="buscarCorreoLG()">Buscar correo de Brittny y procesar</button>
+      <span class="nota">Lee tu Gmail, encuentra el "Tolko Low Grade" más reciente y lo carga solo.</span>
+    </div>
+    <p class="nota" style="margin-top:10px">Plan B — pegar a mano: selecciona la tabla en Gmail, cópiala y pégala aquí (si no incluyes los encabezados, el portal asume el orden estándar y te avisa).</p>
     <textarea id="texto-lg" placeholder="Pega aquí la tabla del correo…"></textarea>
     <div class="filtros" style="margin-top:8px">
       <label>Fecha del correo <input type="date" id="fecha-lg" value="${hoy}"></label>
@@ -1143,6 +1148,31 @@ async function cargarExcel() {
     toast(`Guardado: ${r.n} items (${fecha})`)
     await cargarBoot()
   } catch (e) { toast('Error: ' + e.message, true) }
+}
+async function buscarCorreoLG() {
+  const btn = $('btn-correo-lg')
+  btn.disabled = true; btn.textContent = 'Buscando en Gmail…'
+  try {
+    const r = await fetch(CORREO_API, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ clave: S.clave, action: 'buscar' }) }).then(x => x.json())
+    if (!r || r.error || !r.ok || !r.grid) throw new Error((r && (r.error || 'respuesta inválida')) || 'sin respuesta')
+    const year = parseInt((r.fecha_correo || '').slice(0, 4)) || new Date().getFullYear()
+    const { items, warnings } = TolkoParser.parseLowGradeGrid(r.grid, { year })
+    $('prev-lg').innerHTML = `<p class="nota">Correo: <b>${esc(r.asunto)}</b> · ${esc(r.fecha_correo || '')} · ${esc(r.de || '')}</p>` + resumenParseo(items, warnings)
+    if (!items.length) return toast('Encontré el correo pero no reconocí renglones — pega la tabla a mano', true)
+    // fecha: alinear a la lista xlsx de la misma semana si existe (así se funden en una sola vista)
+    let fecha = (r.fecha_correo || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
+    const cercana = (S.boot.listas || [])
+      .filter(l => l.fuente === 'xlsx_semanal' && Math.abs(new Date(l.fecha) - new Date(fecha)) <= 6 * 864e5)
+      .map(l => l.fecha).sort().reverse()[0]
+    if (cercana) fecha = cercana
+    if ($('fecha-lg')) $('fecha-lg').value = fecha
+    const rr = await api('ingest', { fecha, fuente: 'email_lowgrade', titulo: r.asunto, archivo: 'correo:' + (r.mensaje_id || ''), items })
+    toast(`Correo procesado: ${rr.n} renglones guardados (${fmtFecha(fecha)})`)
+    const resumenHtml = `<p class="nota">✔ Guardado: <b>${esc(r.asunto)}</b> · ${rr.n} renglones · lista del ${fmtFecha(fecha)}</p>` + resumenParseo(items, warnings)
+    await cargarBoot()
+    if (S.vista === 'cargar' && $('prev-lg')) $('prev-lg').innerHTML = resumenHtml // cargarBoot re-renderiza y borra la vista previa
+  } catch (e) { toast('Error: ' + e.message, true) }
+  finally { const b = $('btn-correo-lg'); if (b) { b.disabled = false; b.textContent = 'Buscar correo de Brittny y procesar' } }
 }
 async function cargarLG() {
   const txt = $('texto-lg').value
